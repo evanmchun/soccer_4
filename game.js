@@ -52,8 +52,8 @@ class GLBGame {
             0.1, // Near plane
             1000 // Far plane
         );
-        // Position camera closer behind the character's starting position, looking down the field towards the goal
-        this.camera.position.set(0, 6, 8); // Closer behind and slightly above the character's starting position
+        // Position camera further back to allow for zoom range
+        this.camera.position.set(0, 6, -40); // Zoomed out a bit more
         this.camera.lookAt(0, 0, -90); // Look towards the goal post area
     }
     
@@ -80,10 +80,10 @@ class GLBGame {
         this.controls.dampingFactor = 0.05;
         this.controls.enableZoom = true;
         this.controls.enablePan = true;
-        this.controls.maxDistance = 80;
+        this.controls.maxDistance = 300;
         this.controls.minDistance = 3;
         // Set the target to the goal post location so zoom focuses on the goal
-        this.controls.target.set(0, 0, -90);
+        this.controls.target.set(0, 0,-90);
     }
     
     createSoccerField() {
@@ -254,7 +254,10 @@ class GLBGame {
                 this.model.scale.setScalar(scale);
                 
                 // Position character on the field
-                this.model.position.set(0, 0, 0);
+                // Position character in penalty area near goal (like in the image)
+                this.model.position.set(-7, 0, -50);
+                // Rotate character to face the goal (net)
+                this.model.rotation.y = Math.PI; // 180 degrees to face the goal
                 
                 // Set up animations
                 this.setupAnimations(gltf);
@@ -406,6 +409,73 @@ class GLBGame {
         const cameraMoveSpeed = 0.5;
         
         switch(event.code) {
+            // Character position fine-tuning (with Shift key)
+            case 'KeyW':
+                if (event.shiftKey) {
+                    this.model.position.z -= 0.5; // Move character forward
+                    console.log('Character position:', this.model.position);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.z -= 0.5; // Move camera forward
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
+            case 'KeyS':
+                if (event.shiftKey) {
+                    this.model.position.z += 0.5; // Move character backward
+                    console.log('Character position:', this.model.position);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.z += 0.5; // Move camera backward
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
+            case 'KeyA':
+                if (event.shiftKey) {
+                    this.model.position.x -= 0.5; // Move character left
+                    console.log('Character position:', this.model.position);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.x -= 0.5; // Move camera left
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
+            case 'KeyD':
+                if (event.shiftKey) {
+                    this.model.position.x += 0.5; // Move character right
+                    console.log('Character position:', this.model.position);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.x += 0.5; // Move camera right
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
+            case 'KeyQ':
+                if (event.shiftKey) {
+                    this.model.rotation.y -= 0.1; // Rotate character left
+                    console.log('Character rotation:', this.model.rotation.y);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.y += 0.5; // Move camera up
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
+            case 'KeyE':
+                if (event.shiftKey) {
+                    this.model.rotation.y += 0.1; // Rotate character right
+                    console.log('Character rotation:', this.model.rotation.y);
+                    return; // Prevent regular movement
+                } else if (event.altKey) {
+                    this.camera.position.y -= 0.5; // Move camera down
+                    console.log('Camera position:', this.camera.position);
+                    return; // Prevent regular movement
+                }
+                break;
             // Animation controls
             case 'Digit1':
                 this.playAnimation(0);
