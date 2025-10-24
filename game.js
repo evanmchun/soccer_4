@@ -545,6 +545,7 @@ class GLBGame {
             const runningAction = this.mixer.clipAction(this.runningAnimation);
             runningAction.reset();
             runningAction.setLoop(THREE.LoopRepeat);
+            runningAction.setEffectiveTimeScale(2.0); // Make running animation twice as fast
             runningAction.fadeIn(0.1);
             runningAction.play();
             
