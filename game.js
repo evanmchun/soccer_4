@@ -13,6 +13,7 @@ class GLBGame {
         this.mixer = null;
         this.animations = [];
         this.currentAnimation = null;
+        this.goalPost = null;
         this.isMoving = false;
         this.characterSpeed = 0.5;
         this.pressedKeys = new Set();
@@ -93,9 +94,6 @@ class GLBGame {
         // Create field lines
         this.createFieldLines();
         
-        // Create goal posts
-        this.createGoalPosts();
-        
         // Create center circle
         this.createCenterCircle();
     }
@@ -142,45 +140,6 @@ class GLBGame {
         ]);
         const goalArea2 = new THREE.Line(goalArea2Geometry, lineMaterial);
         this.scene.add(goalArea2);
-    }
-    
-    createGoalPosts() {
-        const goalMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
-        const postGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.5);
-        
-        // Goal 1 (left side)
-        const goal1Left = new THREE.Mesh(postGeometry, goalMaterial);
-        goal1Left.position.set(-3.5, 1.25, -30);
-        goal1Left.castShadow = true;
-        this.scene.add(goal1Left);
-        
-        const goal1Right = new THREE.Mesh(postGeometry, goalMaterial);
-        goal1Right.position.set(3.5, 1.25, -30);
-        goal1Right.castShadow = true;
-        this.scene.add(goal1Right);
-        
-        const goal1Top = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 7), goalMaterial);
-        goal1Top.rotation.z = Math.PI / 2;
-        goal1Top.position.set(0, 2.5, -30);
-        goal1Top.castShadow = true;
-        this.scene.add(goal1Top);
-        
-        // Goal 2 (right side)
-        const goal2Left = new THREE.Mesh(postGeometry, goalMaterial);
-        goal2Left.position.set(-3.5, 1.25, 30);
-        goal2Left.castShadow = true;
-        this.scene.add(goal2Left);
-        
-        const goal2Right = new THREE.Mesh(postGeometry, goalMaterial);
-        goal2Right.position.set(3.5, 1.25, 30);
-        goal2Right.castShadow = true;
-        this.scene.add(goal2Right);
-        
-        const goal2Top = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 7), goalMaterial);
-        goal2Top.rotation.z = Math.PI / 2;
-        goal2Top.position.set(0, 2.5, 30);
-        goal2Top.castShadow = true;
-        this.scene.add(goal2Top);
     }
     
     createCenterCircle() {
@@ -316,6 +275,46 @@ class GLBGame {
         );
     }
     
+    loadGoalPost() {
+        const loader = new GLTFLoader();
+        const timestamp = Date.now();
+        
+        loader.load(
+            `character/goal.glb?v=${timestamp}`,
+            (gltf) => {
+                console.log('Goal post loaded successfully');
+                
+                // Position the goal post in the scene
+                const goalPost = gltf.scene;
+                goalPost.position.set(0, 0, -30); // Position much further back for more field space
+                goalPost.rotation.y = Math.PI; // Rotate 180 degrees to face the character
+                goalPost.scale.set(1, 1, 1); // Adjust scale as needed
+                
+                // Enable shadows for the goal post
+                goalPost.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                
+                // Add to scene
+                this.scene.add(goalPost);
+                
+                // Store reference for future use
+                this.goalPost = goalPost;
+                
+                console.log('Goal post added to scene');
+            },
+            (progress) => {
+                const percentComplete = (progress.loaded / progress.total) * 100;
+                console.log('Goal loading progress:', percentComplete.toFixed(2) + '%');
+            },
+            (error) => {
+                console.error('Error loading goal post:', error);
+            }
+        );
+    }
     
     setupAnimations(gltf) {
         if (gltf.animations && gltf.animations.length > 0) {
@@ -595,6 +594,9 @@ class GLBGame {
             // Return to idle after kick animation finishes
             this.currentAnimation.clampWhenFinished = true;
             this.currentAnimation.addEventListener('finished', () => {
+                // Update the character's position after the kick animation
+                // This ensures WASD movement uses the new position as reference
+                console.log('Kick animation finished, character position updated');
                 this.switchToIdleAnimation();
             });
         } else {
@@ -703,6 +705,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Load your character GLB model with all animations
         game.loadGLBModel('character/ch_animations.glb');
+        
+        // Load the goal post
+        game.loadGoalPost();
         
         // Make game globally accessible for debugging
         window.game = game;
