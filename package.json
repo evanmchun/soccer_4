@@ -1,0 +1,22 @@
+{
+  "name": "threejs-glb-game",
+  "version": "1.0.0",
+  "description": "A Three.js game that loads and displays GLB models",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8080 -c-1",
+    "dev": "npx http-server -p 8080 -c-1 -o"
+  },
+  "keywords": [
+    "threejs",
+    "glb",
+    "3d",
+    "game",
+    "webgl"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
