@@ -52,7 +52,9 @@ class GLBGame {
             0.1, // Near plane
             1000 // Far plane
         );
-        this.camera.position.set(15, 10, 15);
+        // Position camera closer behind the character's starting position, looking down the field towards the goal
+        this.camera.position.set(0, 6, 8); // Closer behind and slightly above the character's starting position
+        this.camera.lookAt(0, 0, -90); // Look towards the goal post area
     }
     
     createRenderer() {
@@ -80,11 +82,13 @@ class GLBGame {
         this.controls.enablePan = true;
         this.controls.maxDistance = 80;
         this.controls.minDistance = 3;
+        // Set the target to the goal post location so zoom focuses on the goal
+        this.controls.target.set(0, 0, -90);
     }
     
     createSoccerField() {
-        // Create grass field
-        const fieldGeometry = new THREE.PlaneGeometry(40, 60);
+        // Create grass field (3x bigger, extended to cover goal posts)
+        const fieldGeometry = new THREE.PlaneGeometry(120, 200);
         const fieldMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
         const field = new THREE.Mesh(fieldGeometry, fieldMaterial);
         field.rotation.x = -Math.PI / 2;
@@ -101,49 +105,49 @@ class GLBGame {
     createFieldLines() {
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
         
-        // Field boundary
+        // Field boundary (3x bigger, extended to cover goal posts)
         const boundaryGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-20, 0.01, -30),
-            new THREE.Vector3(20, 0.01, -30),
-            new THREE.Vector3(20, 0.01, 30),
-            new THREE.Vector3(-20, 0.01, 30),
-            new THREE.Vector3(-20, 0.01, -30)
+            new THREE.Vector3(-60, 0.01, -100),
+            new THREE.Vector3(60, 0.01, -100),
+            new THREE.Vector3(60, 0.01, 100),
+            new THREE.Vector3(-60, 0.01, 100),
+            new THREE.Vector3(-60, 0.01, -100)
         ]);
         const boundary = new THREE.Line(boundaryGeometry, lineMaterial);
         this.scene.add(boundary);
         
-        // Center line
+        // Center line (3x bigger)
         const centerLineGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-20, 0.01, 0),
-            new THREE.Vector3(20, 0.01, 0)
+            new THREE.Vector3(-60, 0.01, 0),
+            new THREE.Vector3(60, 0.01, 0)
         ]);
         const centerLine = new THREE.Line(centerLineGeometry, lineMaterial);
         this.scene.add(centerLine);
         
-        // Goal areas
+        // Goal areas (3x bigger, extended to cover goal posts)
         const goalAreaGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-6, 0.01, -30),
-            new THREE.Vector3(6, 0.01, -30),
-            new THREE.Vector3(6, 0.01, -24),
-            new THREE.Vector3(-6, 0.01, -24),
-            new THREE.Vector3(-6, 0.01, -30)
+            new THREE.Vector3(-18, 0.01, -100),
+            new THREE.Vector3(18, 0.01, -100),
+            new THREE.Vector3(18, 0.01, -72),
+            new THREE.Vector3(-18, 0.01, -72),
+            new THREE.Vector3(-18, 0.01, -100)
         ]);
         const goalArea1 = new THREE.Line(goalAreaGeometry, lineMaterial);
         this.scene.add(goalArea1);
         
         const goalArea2Geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-6, 0.01, 30),
-            new THREE.Vector3(6, 0.01, 30),
-            new THREE.Vector3(6, 0.01, 24),
-            new THREE.Vector3(-6, 0.01, 24),
-            new THREE.Vector3(-6, 0.01, 30)
+            new THREE.Vector3(-18, 0.01, 100),
+            new THREE.Vector3(18, 0.01, 100),
+            new THREE.Vector3(18, 0.01, 72),
+            new THREE.Vector3(-18, 0.01, 72),
+            new THREE.Vector3(-18, 0.01, 100)
         ]);
         const goalArea2 = new THREE.Line(goalArea2Geometry, lineMaterial);
         this.scene.add(goalArea2);
     }
     
     createCenterCircle() {
-        const circleGeometry = new THREE.RingGeometry(9.15, 9.25, 32);
+        const circleGeometry = new THREE.RingGeometry(27.45, 27.75, 32); // 3x bigger
         const circleMaterial = new THREE.MeshBasicMaterial({ 
             color: 0xffffff, 
             side: THREE.DoubleSide 
@@ -284,11 +288,11 @@ class GLBGame {
             (gltf) => {
                 console.log('Goal post loaded successfully');
                 
-                // Position the goal post in the scene
+                // Position the goal post in the scene (3x bigger field)
                 const goalPost = gltf.scene;
-                goalPost.position.set(0, 0, -30); // Position much further back for more field space
+                goalPost.position.set(0, 0, -90); // Position at new field boundary (3x bigger)
                 goalPost.rotation.y = Math.PI; // Rotate 180 degrees to face the character
-                goalPost.scale.set(1, 1, 1); // Adjust scale as needed
+                goalPost.scale.set(4.5, 4.5, 4.5); // Scale 4.5x bigger (3x field × 1.5x goal)
                 
                 // Enable shadows for the goal post
                 goalPost.traverse((child) => {
@@ -402,33 +406,6 @@ class GLBGame {
         const cameraMoveSpeed = 0.5;
         
         switch(event.code) {
-            // Camera controls (with Shift key)
-            case 'KeyW':
-                if (event.shiftKey) {
-                    this.camera.position.z -= cameraMoveSpeed;
-                }
-                break;
-            case 'KeyS':
-                if (event.shiftKey) {
-                    this.camera.position.z += cameraMoveSpeed;
-                }
-                break;
-            case 'KeyA':
-                if (event.shiftKey) {
-                    this.camera.position.x -= cameraMoveSpeed;
-                }
-                break;
-            case 'KeyD':
-                if (event.shiftKey) {
-                    this.camera.position.x += cameraMoveSpeed;
-                }
-                break;
-            case 'KeyQ':
-                this.camera.position.y += cameraMoveSpeed;
-                break;
-            case 'KeyE':
-                this.camera.position.y -= cameraMoveSpeed;
-                break;
             // Animation controls
             case 'Digit1':
                 this.playAnimation(0);
@@ -520,9 +497,9 @@ class GLBGame {
         this.model.position.x += deltaX;
         this.model.position.z += deltaZ;
         
-        // Keep character within field bounds
-        this.model.position.x = Math.max(-18, Math.min(18, this.model.position.x));
-        this.model.position.z = Math.max(-28, Math.min(28, this.model.position.z));
+        // Keep character within field bounds (3x bigger field: 120x200)
+        this.model.position.x = Math.max(-60, Math.min(60, this.model.position.x));
+        this.model.position.z = Math.max(-100, Math.min(100, this.model.position.z));
         
         // Rotate character to face movement direction
         if (deltaX !== 0 || deltaZ !== 0) {
