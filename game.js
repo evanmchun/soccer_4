@@ -14,6 +14,7 @@ class GLBGame {
         this.animations = [];
         this.currentAnimation = null;
         this.goalPost = null;
+        this.ball = null;
         this.isMoving = false;
         this.characterSpeed = 0.5;
         this.pressedKeys = new Set();
@@ -319,6 +320,46 @@ class GLBGame {
             },
             (error) => {
                 console.error('Error loading goal post:', error);
+            }
+        );
+    }
+    
+    loadBall() {
+        const loader = new GLTFLoader();
+        const timestamp = Date.now();
+        
+        loader.load(
+            `character/ball.glb?v=${timestamp}`,
+            (gltf) => {
+                console.log('Ball loaded successfully');
+                
+                // Position the ball on the field
+                const ball = gltf.scene;
+                ball.position.set(-3.9, 0, -56.25); // Position in front of the character
+                ball.scale.set(5, 5, 5); // 5 times bigger
+                
+                // Enable shadows for the ball
+                ball.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                
+                // Add to scene
+                this.scene.add(ball);
+                
+                // Store reference for future use
+                this.ball = ball;
+                
+                console.log('Ball added to scene');
+            },
+            (progress) => {
+                const percentComplete = (progress.loaded / progress.total) * 100;
+                console.log('Ball loading progress:', percentComplete.toFixed(2) + '%');
+            },
+            (error) => {
+                console.error('Error loading ball:', error);
             }
         );
     }
@@ -755,6 +796,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Load the goal post
         game.loadGoalPost();
+        
+        // Load the ball
+        game.loadBall();
         
         // Make game globally accessible for debugging
         window.game = game;
