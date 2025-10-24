@@ -12,6 +12,10 @@ class GLBGame {
         this.model = null;
         this.mixer = null;
         this.animations = [];
+        this.currentAnimation = null;
+        this.isMoving = false;
+        this.characterSpeed = 0.5;
+        this.pressedKeys = new Set();
         this.clock = new THREE.Clock();
         this.stats = {
             fps: 0,
@@ -312,6 +316,7 @@ class GLBGame {
         );
     }
     
+    
     setupAnimations(gltf) {
         if (gltf.animations && gltf.animations.length > 0) {
             console.log('Found animations:', gltf.animations.length);
@@ -322,23 +327,55 @@ class GLBGame {
             // Store all animations
             this.animations = gltf.animations;
             
-            // Play the first animation (usually idle)
-            if (this.animations.length > 0) {
-                const idleAction = this.mixer.clipAction(this.animations[0]);
-                idleAction.play();
-                console.log('Playing animation:', this.animations[0].name || 'Unnamed');
+            // Find idle, running, and kick animations by name
+            this.idleAnimation = this.findAnimationByName(['idle', 'Idle', 'IDLE', 'standing', 'Standing']);
+            this.runningAnimation = this.findAnimationByName(['run', 'Run', 'RUN', 'running', 'Running', 'RUNNING']);
+            this.kickAnimation = this.findAnimationByName(['kick', 'Kick', 'KICK', 'kicking', 'Kicking', 'KICKING']);
+            
+            // If we can't find by name, use index-based approach
+            if (!this.idleAnimation && this.animations.length > 0) {
+                this.idleAnimation = this.animations[0]; // First animation as idle
+            }
+            if (!this.runningAnimation && this.animations.length > 1) {
+                this.runningAnimation = this.animations[1]; // Second animation as running
+            }
+            if (!this.kickAnimation && this.animations.length > 2) {
+                this.kickAnimation = this.animations[2]; // Third animation as kick
             }
             
-            // If there are multiple animations, you can set up controls
-            if (this.animations.length > 1) {
-                console.log('Available animations:');
-                this.animations.forEach((clip, index) => {
-                    console.log(`${index}: ${clip.name || 'Unnamed'}`);
-                });
+            // Start with idle animation
+            if (this.idleAnimation) {
+                this.currentAnimation = this.mixer.clipAction(this.idleAnimation);
+                this.currentAnimation.play();
+                this.currentAnimation.setEffectiveTimeScale(1.0);
+                console.log('Playing idle animation:', this.idleAnimation.name || 'Unnamed');
             }
+            
+            // Log all available animations
+            console.log('Available animations:');
+            this.animations.forEach((clip, index) => {
+                const type = clip === this.idleAnimation ? ' (IDLE)' : 
+                           clip === this.runningAnimation ? ' (RUNNING)' :
+                           clip === this.kickAnimation ? ' (KICK)' : '';
+                console.log(`${index}: ${clip.name || 'Unnamed'}${type}`);
+            });
+            
+            console.log('Idle animation:', this.idleAnimation?.name || 'Not found');
+            console.log('Running animation:', this.runningAnimation?.name || 'Not found');
+            console.log('Kick animation:', this.kickAnimation?.name || 'Not found');
         } else {
             console.log('No animations found in GLB file');
         }
+    }
+    
+    findAnimationByName(names) {
+        for (const name of names) {
+            const animation = this.animations.find(clip => 
+                clip.name && clip.name.toLowerCase().includes(name.toLowerCase())
+            );
+            if (animation) return animation;
+        }
+        return null;
     }
     
     
@@ -354,30 +391,46 @@ class GLBGame {
         document.addEventListener('keydown', (event) => {
             this.handleKeyDown(event);
         });
+        
+        document.addEventListener('keyup', (event) => {
+            this.handleKeyUp(event);
+        });
     }
     
     handleKeyDown(event) {
-        const moveSpeed = 0.5;
+        this.pressedKeys.add(event.code);
+        
+        const cameraMoveSpeed = 0.5;
         
         switch(event.code) {
+            // Camera controls (with Shift key)
             case 'KeyW':
-                this.camera.position.z -= moveSpeed;
+                if (event.shiftKey) {
+                    this.camera.position.z -= cameraMoveSpeed;
+                }
                 break;
             case 'KeyS':
-                this.camera.position.z += moveSpeed;
+                if (event.shiftKey) {
+                    this.camera.position.z += cameraMoveSpeed;
+                }
                 break;
             case 'KeyA':
-                this.camera.position.x -= moveSpeed;
+                if (event.shiftKey) {
+                    this.camera.position.x -= cameraMoveSpeed;
+                }
                 break;
             case 'KeyD':
-                this.camera.position.x += moveSpeed;
+                if (event.shiftKey) {
+                    this.camera.position.x += cameraMoveSpeed;
+                }
                 break;
             case 'KeyQ':
-                this.camera.position.y += moveSpeed;
+                this.camera.position.y += cameraMoveSpeed;
                 break;
             case 'KeyE':
-                this.camera.position.y -= moveSpeed;
+                this.camera.position.y -= cameraMoveSpeed;
                 break;
+            // Animation controls
             case 'Digit1':
                 this.playAnimation(0);
                 break;
@@ -390,9 +443,161 @@ class GLBGame {
             case 'Digit4':
                 this.playAnimation(3);
                 break;
+            case 'Space':
+                this.playKickAnimation();
+                break;
             case 'KeyL':
                 this.toggleLighting();
                 break;
+        }
+    }
+    
+    handleKeyUp(event) {
+        this.pressedKeys.delete(event.code);
+        
+        // Check if any movement keys are still pressed
+        const movementKeys = ['KeyW', 'KeyS', 'KeyA', 'KeyD'];
+        const anyMovementKeyPressed = movementKeys.some(key => this.pressedKeys.has(key));
+        
+        if (!anyMovementKeyPressed && this.isMoving) {
+            this.isMoving = false;
+            console.log('All movement keys released, switching to idle');
+            this.switchToIdleAnimation();
+        }
+    }
+    
+    handleContinuousMovement(deltaTime) {
+        if (!this.model) return;
+        
+        const moveSpeed = this.characterSpeed * deltaTime * 60; // Scale by deltaTime and 60fps
+        let deltaX = 0;
+        let deltaZ = 0;
+        
+        // Check which movement keys are currently pressed
+        if (this.pressedKeys.has('KeyW')) {
+            deltaZ -= moveSpeed;
+        }
+        if (this.pressedKeys.has('KeyS')) {
+            deltaZ += moveSpeed;
+        }
+        if (this.pressedKeys.has('KeyA')) {
+            deltaX -= moveSpeed;
+        }
+        if (this.pressedKeys.has('KeyD')) {
+            deltaX += moveSpeed;
+        }
+        
+        // Debug: Log pressed keys and movement state
+        if (this.pressedKeys.size > 0) {
+            console.log('Pressed keys:', Array.from(this.pressedKeys), 'deltaX:', deltaX, 'deltaZ:', deltaZ, 'isMoving:', this.isMoving);
+        }
+        
+        // Only move if any movement keys are pressed
+        if (deltaX !== 0 || deltaZ !== 0) {
+            this.moveCharacter(deltaX, deltaZ);
+            // Switch to running animation when moving
+            if (!this.isMoving) {
+                this.isMoving = true;
+                console.log('Started moving, switching to running');
+                this.switchToRunningAnimation();
+            }
+        } else {
+            // No movement keys pressed
+            if (this.isMoving) {
+                this.isMoving = false;
+                console.log('Stopped moving, switching to idle');
+                this.switchToIdleAnimation();
+            }
+        }
+    }
+    
+    moveCharacter(deltaX, deltaZ) {
+        if (!this.model) {
+            console.log('No model found for movement');
+            return;
+        }
+        
+        // Move the character
+        this.model.position.x += deltaX;
+        this.model.position.z += deltaZ;
+        
+        // Keep character within field bounds
+        this.model.position.x = Math.max(-18, Math.min(18, this.model.position.x));
+        this.model.position.z = Math.max(-28, Math.min(28, this.model.position.z));
+        
+        // Rotate character to face movement direction
+        if (deltaX !== 0 || deltaZ !== 0) {
+            const angle = Math.atan2(deltaX, deltaZ);
+            this.model.rotation.y = angle;
+        }
+        
+    }
+    
+    switchToRunningAnimation() {
+        console.log('switchToRunningAnimation called');
+        if (this.mixer && this.runningAnimation) {
+            // Fade out current animation if it exists
+            if (this.currentAnimation) {
+                this.currentAnimation.fadeOut(0.1);
+            }
+            
+            // Create and play running animation
+            const runningAction = this.mixer.clipAction(this.runningAnimation);
+            runningAction.reset();
+            runningAction.setLoop(THREE.LoopRepeat);
+            runningAction.fadeIn(0.1);
+            runningAction.play();
+            
+            this.currentAnimation = runningAction;
+            console.log('Switched to running animation:', this.runningAnimation.name || 'Unnamed');
+        } else {
+            console.log('No running animation available - mixer:', !!this.mixer, 'runningAnimation:', !!this.runningAnimation);
+        }
+    }
+    
+    switchToIdleAnimation() {
+        console.log('switchToIdleAnimation called');
+        if (this.mixer && this.idleAnimation) {
+            // Fade out current animation if it exists
+            if (this.currentAnimation) {
+                this.currentAnimation.fadeOut(0.1);
+            }
+            
+            // Create and play idle animation
+            const idleAction = this.mixer.clipAction(this.idleAnimation);
+            idleAction.reset();
+            idleAction.setLoop(THREE.LoopRepeat);
+            idleAction.fadeIn(0.1);
+            idleAction.play();
+            
+            this.currentAnimation = idleAction;
+            console.log('Switched to idle animation:', this.idleAnimation.name || 'Unnamed');
+        } else {
+            console.log('No idle animation available - mixer:', !!this.mixer, 'idleAnimation:', !!this.idleAnimation);
+        }
+    }
+    
+    playKickAnimation() {
+        if (this.mixer && this.kickAnimation) {
+            // Stop current animation
+            if (this.currentAnimation) {
+                this.currentAnimation.stop();
+            }
+            
+            // Play kick animation (no loop, plays once)
+            this.currentAnimation = this.mixer.clipAction(this.kickAnimation);
+            this.currentAnimation.reset();
+            this.currentAnimation.setLoop(THREE.LoopOnce);
+            this.currentAnimation.play();
+            console.log('Playing kick animation:', this.kickAnimation.name || 'Unnamed');
+            
+            // Return to idle after kick animation finishes
+            this.currentAnimation.clampWhenFinished = true;
+            this.currentAnimation.addEventListener('finished', () => {
+                this.switchToIdleAnimation();
+            });
+        } else {
+            console.log('No kick animation available');
         }
     }
     
@@ -404,6 +609,7 @@ class GLBGame {
             // Play the selected animation
             const action = this.mixer.clipAction(this.animations[index]);
             action.play();
+            action.setEffectiveTimeScale(1.0); // Reset to normal speed
             console.log('Playing animation:', this.animations[index].name || `Animation ${index}`);
         }
     }
@@ -478,6 +684,9 @@ class GLBGame {
         // Update controls
         this.controls.update();
         
+        // Handle continuous movement
+        this.handleContinuousMovement(deltaTime);
+        
         // Update stats
         this.updateStats();
         
@@ -491,8 +700,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const game = new GLBGame();
         
-        // Load your character GLB model
-        game.loadGLBModel('character/Ch_idle-2.glb');
+        // Load your character GLB model with all animations
+        game.loadGLBModel('character/ch_animations.glb');
         
         // Make game globally accessible for debugging
         window.game = game;
