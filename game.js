@@ -27,6 +27,9 @@ class GLBGame {
         this.pressedKeys = new Set();
         this.clock = new THREE.Clock();
         this.frameCount = 0;
+        this.kickSound = null;
+        this.audioContextInitialized = false;
+        this.ballLanded = false;
         this.stats = {
             fps: 0,
             objectCount: 0
@@ -372,51 +375,63 @@ class GLBGame {
     kickBall() {
         if (!this.ball) return;
         
-        console.log('Kicking ball towards goal!');
-        console.log('Ball starting position:', this.ball.position);
+        console.log('Kicking ball!');
         
-        // Ball starts at (-3.9, 0, -56.25), goal is at z = -90
-        // Need to travel about 34 units forward to reach goal
+        // Initialize audio context on first user interaction
+        if (!this.audioContextInitialized) {
+            console.log('Initializing audio context on first user interaction');
+            this.audioContextInitialized = true;
+            // Try to resume audio context if it's suspended
+            if (this.kickSound && this.kickSound.context) {
+                this.kickSound.context.resume();
+            }
+        }
         
-        // Target deeper into the collision box - closer to the back boundary
-        const collisionBoxCenterZ = -111; // Target deeper into the box (was -109, now closer to back at -113)
-        const collisionBoxCenterY = 5; // Middle height of collision box
+        // Play kick sound if available (try both Three.js and HTML5)
+        let soundPlayed = false;
         
-        // Randomly choose between center, middle right, or middle left
-        const targetOptions = [
-            { x: 0, name: 'center' },      // Center
-            { x: 9, name: 'middle right' }, // Middle right
-            { x: -9, name: 'middle left' }  // Middle left
-        ];
+        if (this.kickSound) {
+            console.log('Playing Three.js kick sound');
+            try {
+                this.kickSound.play();
+                console.log('Three.js kick sound play() called successfully');
+                soundPlayed = true;
+            } catch (error) {
+                console.error('Error playing Three.js kick sound:', error);
+            }
+        }
         
-        const selectedTarget = targetOptions[Math.floor(Math.random() * targetOptions.length)];
-        console.log('Selected target:', selectedTarget.name);
+        if (this.html5KickSound && !soundPlayed) {
+            console.log('Playing HTML5 kick sound');
+            try {
+                this.html5KickSound.currentTime = 0; // Reset to beginning
+                this.html5KickSound.play();
+                console.log('HTML5 kick sound play() called successfully');
+                soundPlayed = true;
+            } catch (error) {
+                console.error('Error playing HTML5 kick sound:', error);
+            }
+        }
         
-        // Small random variations around the selected target - reduced for more precision
-        const randomX = selectedTarget.x + (Math.random() - 0.5) * 1; // ±0.5 unit around target (well within ±16.5)
-        const randomY = collisionBoxCenterY + (Math.random() - 0.5) * 0.5; // ±0.25 units up/down (well within 0-11)
-        const randomZ = collisionBoxCenterZ + (Math.random() - 0.5) * 0.5; // ±0.25 units around the deeper target point
+        if (!soundPlayed) {
+            console.log('No kick sound available - neither Three.js nor HTML5 audio loaded');
+        }
         
-        const targetPosition = new THREE.Vector3(randomX, randomY, randomZ);
-        console.log('Target position:', targetPosition);
+        // Use the pre-calculated direction from playKickAnimation()
+        const direction = this.ballDirection || new THREE.Vector3(0, 0, -1); // Fallback if not set
+        console.log('Using stored direction:', direction.x.toFixed(2), direction.y.toFixed(2), direction.z.toFixed(2));
         
-        // Calculate direction from ball to target
-        const direction = new THREE.Vector3();
-        direction.subVectors(targetPosition, this.ball.position);
-        direction.normalize();
-        
-        console.log('Direction vector:', direction);
-        
-        // Set velocity with enough power to reach the back of collision box
-        const kickPower = 2.3; // Fine-tuned ball speed
+        // Set velocity with reduced power for slower ball speed
+        const kickPower = 1.5; // Reduced ball speed
         this.ballVelocity.set(
             direction.x * kickPower,
-            direction.y * kickPower + 0.3, // Slightly higher trajectory
+            direction.y * kickPower + 0.2, // Slightly higher trajectory
             direction.z * kickPower
         );
         
         this.ballKicked = true;
-        console.log('Ball velocity set:', this.ballVelocity);
+        this.ballLanded = false; // Reset landing flag when ball is kicked
+        console.log('Velocity:', this.ballVelocity.x.toFixed(2), this.ballVelocity.y.toFixed(2), this.ballVelocity.z.toFixed(2));
     }
     
     updateBallPhysics() {
@@ -425,19 +440,9 @@ class GLBGame {
             return;
         }
         
-        // Debug: Track ball state at start of physics update
-        if (this.ballKicked && !this.goalScored) {
-            // Only log every 10 frames to reduce spam, but always log when near goal
-            if (this.frameCount % 10 === 0 || this.ball.position.z < -80) {
-                console.log('PHYSICS UPDATE - Ball state:', {
-                    position: this.ball.position,
-                    velocity: this.ballVelocity,
-                    velocityLength: this.ballVelocity.length(),
-                    ballKicked: this.ballKicked,
-                    goalScored: this.goalScored,
-                    ballStopTimer: this.ballStopTimer
-                });
-            }
+        // Minimal debug logging - only when ball is kicked and every 60 frames, but stop once landed
+        if (this.ballKicked && !this.goalScored && !this.ballLanded && this.frameCount % 60 === 0) {
+            console.log('Ball:', this.ball.position.x.toFixed(1), this.ball.position.y.toFixed(1), this.ball.position.z.toFixed(1));
         }
         
         // Handle goal celebration
@@ -448,18 +453,18 @@ class GLBGame {
             // Update ball position
             this.ball.position.add(this.ballVelocity);
             
-            // Check if ball hit the ground
-            if (this.ball.position.y <= 0.5) {
-                this.ball.position.y = 0.5;
-                this.ballVelocity.y = 0; // Stop falling
-                console.log('Ball landed on ground at position:', this.ball.position);
-            }
+        // Check if ball hit the ground
+        if (this.ball.position.y <= 0.5) {
+            this.ball.position.y = 0.5;
+            this.ballVelocity.y = 0; // Stop falling
+            this.ballLanded = true;
+        }
             
             // Ball stays in goal area permanently until R key is pressed
             // No automatic reset - ball will stay there until manual reset
             return;
         }
-        
+         
         // Apply gravity
         this.ballVelocity.y += this.ballGravity;
         
@@ -477,11 +482,8 @@ class GLBGame {
         // Check if ball is in the goal area and apply slowing effect
         const inGoalArea = this.checkGoalArea();
         if (inGoalArea && !this.goalScored) {
-            console.log('*** BALL ENTERED GOAL AREA *** - applying slowing effect. Position:', this.ball.position);
-            console.log('Goal area boundaries: X: ±16.5, Y: 0-11, Z: -113 to -105');
+            console.log('*** GOAL AREA ***');
             this.handleGoalArea();
-        } else if (!inGoalArea && this.ballKicked && !this.goalScored) {
-            console.log('Ball NOT in goal area. Position:', this.ball.position);
         }
         
         // CRITICAL SAFETY CHECK: If ball was ever in goal area, ensure it cannot escape
@@ -496,6 +498,9 @@ class GLBGame {
             this.ballVelocity.y *= -0.6; // Bounce with reduced energy
             this.ballVelocity.x *= 0.8;  // Reduce horizontal speed on bounce
             this.ballVelocity.z *= 0.8;
+            
+            // Set ballLanded flag to stop position logging
+            this.ballLanded = true;
             
             // Don't reset ball immediately after first bounce
             if (this.ballVelocity.length() < 0.1) {
@@ -514,12 +519,8 @@ class GLBGame {
         // Be more lenient with X boundaries since goal area is only 33 units wide
         if (!this.goalScored && !inGoalArea && (this.ball.position.z < -120 || this.ball.position.z > 100 || 
             this.ball.position.x < -50 || this.ball.position.x > 50)) {
-            console.log('*** BALL WENT TOO FAR - RESETTING ***');
-            console.log('Ball position:', this.ball.position);
-            console.log('goalScored:', this.goalScored, 'inGoalArea:', inGoalArea);
-            console.log('Boundary check - Z:', this.ball.position.z, 'X:', this.ball.position.x);
-            console.log('Z limits: -120 to 100, X limits: -50 to 50');
-            this.resetBall(); // This will also reset character
+            console.log('*** RESET - Ball too far ***');
+            this.resetBall();
         }
     }
     
@@ -542,46 +543,73 @@ class GLBGame {
         
         // Only apply constraints if ball is near the goal area (to avoid affecting ball elsewhere)
         if (this.ball.position.z < -80) {
-            console.log('APPLYING BOUNDARY CONSTRAINTS - Ball position:', this.ball.position);
-            console.log('APPLYING BOUNDARY CONSTRAINTS - Boundaries: X:', minX, 'to', maxX, 'Y:', minY, 'to', maxY, 'Z:', minZ, 'to', maxZ);
+            // Only log boundary constraints if ball hasn't landed yet
+            if (!this.ballLanded) {
+                console.log('APPLYING BOUNDARY CONSTRAINTS - Ball position:', this.ball.position);
+                console.log('APPLYING BOUNDARY CONSTRAINTS - Boundaries: X:', minX, 'to', maxX, 'Y:', minY, 'to', maxY, 'Z:', minZ, 'to', maxZ);
+            }
             
             // CRITICAL: Keep ball within X boundaries - ball CANNOT escape
             if (this.ball.position.x < minX) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit left boundary at x =', this.ball.position.x, 'constraining to', minX);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit left boundary at x =', this.ball.position.x, 'constraining to', minX);
+                }
                 this.ball.position.x = minX;
                 this.ballVelocity.x = 0; // Stop horizontal movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to left boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to left boundary - CANNOT ESCAPE');
+                }
             } else if (this.ball.position.x > maxX) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit right boundary at x =', this.ball.position.x, 'constraining to', maxX);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit right boundary at x =', this.ball.position.x, 'constraining to', maxX);
+                }
                 this.ball.position.x = maxX;
                 this.ballVelocity.x = 0; // Stop horizontal movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to right boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to right boundary - CANNOT ESCAPE');
+                }
             }
             
             // CRITICAL: Keep ball within Y boundaries - ball CANNOT escape
             if (this.ball.position.y < minY) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit bottom boundary at y =', this.ball.position.y, 'constraining to', minY);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit bottom boundary at y =', this.ball.position.y, 'constraining to', minY);
+                }
                 this.ball.position.y = minY;
                 this.ballVelocity.y = 0; // Stop vertical movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to bottom boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to bottom boundary - CANNOT ESCAPE');
+                }
             } else if (this.ball.position.y > maxY) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit top boundary at y =', this.ball.position.y, 'constraining to', maxY);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit top boundary at y =', this.ball.position.y, 'constraining to', maxY);
+                }
                 this.ball.position.y = maxY;
                 this.ballVelocity.y = 0; // Stop vertical movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to top boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to top boundary - CANNOT ESCAPE');
+                }
             }
             
             // CRITICAL: Keep ball within Z boundaries - ball CANNOT escape the box
             if (this.ball.position.z < minZ) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit back boundary at z =', this.ball.position.z, 'constraining to', minZ);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit back boundary at z =', this.ball.position.z, 'constraining to', minZ);
+                }
                 this.ball.position.z = minZ;
                 this.ballVelocity.z = 0; // Stop forward movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to back boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to back boundary - CANNOT ESCAPE');
+                }
             } else if (this.ball.position.z > maxZ) {
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit front boundary at z =', this.ball.position.z, 'constraining to', maxZ);
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit front boundary at z =', this.ball.position.z, 'constraining to', maxZ);
+                }
                 this.ball.position.z = maxZ;
                 this.ballVelocity.z = 0; // Stop backward movement completely
-                console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to front boundary - CANNOT ESCAPE');
+                if (!this.ballLanded) {
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to front boundary - CANNOT ESCAPE');
+                }
             }
         }
     }
@@ -602,14 +630,9 @@ class GLBGame {
         const inGoalY = ballPos.y >= 0 && ballPos.y <= goalHeight;
         const inGoalZ = ballPos.z >= goalCenterZ - goalDepth/2 && ballPos.z <= goalCenterZ + goalDepth/2;
         
-        // Debug logging
-        if (ballPos.z < -85) { // Only log when ball is close to goal
-            console.log('Ball near goal - Position:', ballPos);
-            console.log('Goal area check - X:', inGoalX, 'Y:', inGoalY, 'Z:', inGoalZ);
-            console.log('Goal area bounds - X: ±16.5, Y: 0-11, Z: -113 to -105');
-            if (inGoalX && inGoalY && inGoalZ) {
-                console.log('*** BALL IS IN GOAL AREA ***');
-            }
+        // Minimal logging - only when ball enters goal area
+        if (inGoalX && inGoalY && inGoalZ) {
+            console.log('*** BALL IS IN GOAL AREA ***');
         }
         
         return inGoalX && inGoalY && inGoalZ;
@@ -636,54 +659,37 @@ class GLBGame {
         const minZ = goalCenterZ - goalDepth / 2;  // -113
         const maxZ = goalCenterZ + goalDepth / 2;  // -105
         
-        console.log('HANDLE GOAL AREA - Ball position:', this.ball.position);
-        console.log('HANDLE GOAL AREA - Boundaries: X:', minX, 'to', maxX, 'Y:', minY, 'to', maxY, 'Z:', minZ, 'to', maxZ);
-        console.log('HANDLE GOAL AREA - Ball Z position:', this.ball.position.z, 'minZ:', minZ, 'maxZ:', maxZ);
-        console.log('HANDLE GOAL AREA - Z boundary check: ball.z < minZ?', this.ball.position.z < minZ, 'ball.z > maxZ?', this.ball.position.z > maxZ);
+        // Minimal logging
         
         // CRITICAL: Keep ball within X boundaries - ball CANNOT escape
         if (this.ball.position.x < minX) {
-            console.log('Ball hit left boundary at x =', this.ball.position.x, 'constraining to', minX);
             this.ball.position.x = minX;
-            this.ballVelocity.x = 0; // Stop horizontal movement completely
-            console.log('Ball constrained to left boundary - CANNOT ESCAPE');
+            this.ballVelocity.x = 0;
         } else if (this.ball.position.x > maxX) {
-            console.log('Ball hit right boundary at x =', this.ball.position.x, 'constraining to', maxX);
             this.ball.position.x = maxX;
-            this.ballVelocity.x = 0; // Stop horizontal movement completely
-            console.log('Ball constrained to right boundary - CANNOT ESCAPE');
+            this.ballVelocity.x = 0;
         }
         
         // CRITICAL: Keep ball within Y boundaries - ball CANNOT escape
         if (this.ball.position.y < minY) {
             this.ball.position.y = minY;
-            this.ballVelocity.y = 0; // Stop vertical movement completely
-            console.log('Ball constrained to bottom boundary - CANNOT ESCAPE');
+            this.ballVelocity.y = 0;
         } else if (this.ball.position.y > maxY) {
             this.ball.position.y = maxY;
-            this.ballVelocity.y = 0; // Stop vertical movement completely
-            console.log('Ball constrained to top boundary - CANNOT ESCAPE');
+            this.ballVelocity.y = 0;
         }
         
-        // CRITICAL: Keep ball within Z boundaries - ball CANNOT escape the box
         if (this.ball.position.z < minZ) {
-            console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit back boundary at z =', this.ball.position.z, 'constraining to', minZ);
             this.ball.position.z = minZ;
-            this.ballVelocity.z = 0; // Stop forward movement completely
-            console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to back boundary - CANNOT ESCAPE');
+            this.ballVelocity.z = 0;
         } else if (this.ball.position.z > maxZ) {
-            console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit front boundary at z =', this.ball.position.z, 'constraining to', maxZ);
             this.ball.position.z = maxZ;
-            this.ballVelocity.z = 0; // Stop backward movement completely
-            console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to front boundary - CANNOT ESCAPE');
-        } else {
-            console.log('Ball Z position is within boundaries, no constraint needed');
+            this.ballVelocity.z = 0;
         }
         
         // Check if ball has slowed down enough to consider it "scored"
         if (this.ballVelocity.length() < 0.1 && !this.goalScored) {
-            console.log('GOAL SCORED: Ball has slowed down enough in goal area!');
-            console.log('Ball velocity:', this.ballVelocity.length(), 'Position:', this.ball.position);
+            console.log('GOAL SCORED!');
             
             // Set goal scored flag
             this.goalScored = true;
@@ -715,78 +721,163 @@ class GLBGame {
         
         // Force ball to stay within boundaries - NO EXCEPTIONS
         if (this.ball.position.x < minX) {
-            console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to left boundary', minX);
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to left boundary', minX);
+            }
             this.ball.position.x = minX;
             this.ballVelocity.x = 0;
-            console.log('SAFETY: Ball forced back to left boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to left boundary');
+            }
         } else if (this.ball.position.x > maxX) {
-            console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to right boundary', maxX);
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to right boundary', maxX);
+            }
             this.ball.position.x = maxX;
             this.ballVelocity.x = 0;
-            console.log('SAFETY: Ball forced back to right boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to right boundary');
+            }
         }
         
         if (this.ball.position.y < minY) {
             this.ball.position.y = minY;
             this.ballVelocity.y = 0;
-            console.log('SAFETY: Ball forced back to bottom boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to bottom boundary');
+            }
         } else if (this.ball.position.y > maxY) {
             this.ball.position.y = maxY;
             this.ballVelocity.y = 0;
-            console.log('SAFETY: Ball forced back to top boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to top boundary');
+            }
         }
         
         if (this.ball.position.z < minZ) {
             this.ball.position.z = minZ;
             this.ballVelocity.z = 0;
-            console.log('SAFETY: Ball forced back to back boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to back boundary');
+            }
         } else if (this.ball.position.z > maxZ) {
             this.ball.position.z = maxZ;
             this.ballVelocity.z = 0;
-            console.log('SAFETY: Ball forced back to front boundary');
+            if (!this.ballLanded) {
+                console.log('SAFETY: Ball forced back to front boundary');
+            }
         }
     }
     
     resetBall() {
         if (!this.ball) return;
         
-        console.log('=== RESET BALL CALLED ===');
-        console.log('Current ball position:', this.ball.position);
-        console.log('Current ball velocity:', this.ballVelocity);
-        console.log('goalScored flag:', this.goalScored);
-        console.log('ballKicked flag:', this.ballKicked);
-        console.log('ballStopTimer:', this.ballStopTimer);
+        console.log('=== RESET BALL ===');
         
-        this.ball.position.set(-3.9, 0, -56.25); // Start on the ground (y = 0)
+        this.ball.position.set(-3.9, 0.5, -56.25); // Start on the ground (y = 0.5)
         this.ballVelocity.set(0, 0, 0);
         this.ballKicked = false;
         this.ballStopTimer = 0;
         this.goalScored = false;
+        this.ballLanded = false; // Reset landing flag
         
-        console.log('Ball reset complete - new position:', this.ball.position);
-        console.log('=== RESET BALL COMPLETE ===');
-        
-        // Also reset character immediately when ball resets
         this.resetCharacter();
     }
     
     resetCharacter() {
         if (!this.model) {
-            console.log('Cannot reset character - model not found');
+        // Character reset
             return;
         }
         
-        console.log('Resetting character to original position');
-        console.log('Character current position:', this.model.position);
+        // Character reset
         this.model.position.set(-7, 0, -50); // Match the original starting position
         this.model.rotation.y = Math.PI; // Face the goal
-        console.log('Character new position:', this.model.position);
+        // Character reset complete
     }
     
     resetGame() {
-        console.log('Resetting game - ball and character to original positions');
+        // Game reset
         this.resetBall();
         this.resetCharacter();
+    }
+    
+    loadGoalie() {
+        const loader = new GLTFLoader();
+        
+        loader.load(
+            'character/ch_goalie.glb',
+            (gltf) => {
+                console.log('Goalie model loaded successfully:', gltf);
+                this.goalie = gltf.scene;
+                
+                // Enable shadows and improve materials for the goalie
+                this.goalie.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // Improve material properties for better visibility
+                        if (child.material) {
+                            // Make materials more emissive and brighter
+                            if (child.material.map) {
+                                child.material.map.encoding = THREE.sRGBEncoding;
+                            }
+                            
+                            // Increase material brightness significantly
+                            if (child.material.color) {
+                                child.material.color.multiplyScalar(1.5);
+                            }
+                            
+                            // Make materials more emissive for extra brightness
+                            if (child.material.emissive) {
+                                child.material.emissive.multiplyScalar(0.3);
+                            }
+                            
+                            // Remove glossy/reflective properties
+                            child.material.roughness = 1.0; // Maximum roughness (no gloss)
+                            child.material.metalness = 0.0; // No metallic properties
+                            child.material.envMapIntensity = 0.0; // No environment reflections
+                            
+                            // Make materials more responsive to light
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // Center the goalie model
+                const box = new THREE.Box3().setFromObject(this.goalie);
+                const center = box.getCenter(new THREE.Vector3());
+                this.goalie.position.sub(center);
+                
+                // Scale the goalie to 4.0x size (even bigger goalie)
+                this.goalie.scale.setScalar(4.0);
+                
+                // Position goalie in front of the goalie box
+                // Goal center is at z = -109, goal depth is 8, so front of goal is at z = -105
+                // Position goalie slightly in front of the goal
+                this.goalie.position.set(0, 0, -100); // Center of goal, slightly in front
+                
+                // Rotate goalie to face the player (opposite direction from the main character)
+                this.goalie.rotation.y = 0; // Face towards the player
+                
+                // Set up goalie animations
+                this.setupGoalieAnimations(gltf);
+                
+                this.scene.add(this.goalie);
+                
+                console.log('Goalie positioned in front of goalie box');
+                
+                // Update stats
+                this.updateStats();
+            },
+            (progress) => {
+                console.log('Goalie loading progress:', (progress.loaded / progress.total * 100) + '%');
+            },
+            (error) => {
+                console.error('Error loading goalie model:', error);
+            }
+        );
     }
     
     loadBall() {
@@ -801,7 +892,7 @@ class GLBGame {
         });
         
         const ball = new THREE.Mesh(ballGeometry, ballMaterial);
-        ball.position.set(-3.9, 0, -56.25); // Position in front of the character, on the ground (y = 0)
+        ball.position.set(-3.9, 0.5, -56.25); // Position in front of the character, on the ground (y = 0.5)
         ball.scale.set(2, 2, 2); // Make it a bit bigger for visibility
                 
                 // Enable shadows for the ball
@@ -815,6 +906,179 @@ class GLBGame {
                 this.ball = ball;
                 
         console.log('Sphere ball added to scene');
+    }
+    
+    setupGoalieAnimations(gltf) {
+        if (gltf.animations && gltf.animations.length > 0) {
+            console.log('Found goalie animations:', gltf.animations.length);
+            
+            // Create animation mixer for goalie
+            this.goalieMixer = new THREE.AnimationMixer(this.goalie);
+            
+            // Store all goalie animations
+            this.goalieAnimations = gltf.animations;
+            
+            // Find idle animation for goalie
+            this.goalieIdleAnimation = this.findGoalieAnimationByName(['idle', 'Idle', 'IDLE', 'standing', 'Standing']);
+            
+            // Find save animations for goalie
+            this.goalieSaveLAnimation = this.findGoalieAnimationByName(['save_L', 'save_l', 'Save_L', 'SAVE_L', 'dive_left', 'Dive_Left']);
+            this.goalieSaveRAnimation = this.findGoalieAnimationByName(['save_R', 'save_r', 'Save_R', 'SAVE_R', 'dive_right', 'Dive_Right']);
+            
+            // If we can't find by name, use first animation as idle
+            if (!this.goalieIdleAnimation && this.goalieAnimations.length > 0) {
+                this.goalieIdleAnimation = this.goalieAnimations[0];
+            }
+            
+            // Start with idle animation
+            if (this.goalieIdleAnimation) {
+                this.goalieCurrentAnimation = this.goalieMixer.clipAction(this.goalieIdleAnimation);
+                this.goalieCurrentAnimation.play();
+                this.goalieCurrentAnimation.setEffectiveTimeScale(1.0);
+                console.log('Playing goalie idle animation:', this.goalieIdleAnimation.name || 'Unnamed');
+            }
+            
+            // Log all available goalie animations
+            console.log('Available goalie animations:');
+            this.goalieAnimations.forEach((clip, index) => {
+                const type = clip === this.goalieIdleAnimation ? ' (IDLE)' : 
+                           clip === this.goalieSaveLAnimation ? ' (SAVE_L)' :
+                           clip === this.goalieSaveRAnimation ? ' (SAVE_R)' : '';
+                console.log(`${index}: ${clip.name || 'Unnamed'}${type}`);
+            });
+            
+            console.log('Goalie idle animation:', this.goalieIdleAnimation?.name || 'Not found');
+            console.log('Goalie save_L animation:', this.goalieSaveLAnimation?.name || 'Not found');
+            console.log('Goalie save_R animation:', this.goalieSaveRAnimation?.name || 'Not found');
+            
+        } else {
+            console.log('No animations found in goalie GLB file');
+        }
+    }
+    
+    findGoalieAnimationByName(names) {
+        for (const name of names) {
+            const animation = this.goalieAnimations.find(clip => 
+                clip.name && clip.name.toLowerCase().includes(name.toLowerCase())
+            );
+            if (animation) return animation;
+        }
+        return null;
+    }
+    
+    playGoalieSaveAnimation(ballDirection) {
+        console.log('=== GOALIE SAVE ANIMATION DEBUG ===');
+        console.log('goalieMixer exists:', !!this.goalieMixer);
+        console.log('goalieSaveLAnimation exists:', !!this.goalieSaveLAnimation);
+        console.log('goalieSaveRAnimation exists:', !!this.goalieSaveRAnimation);
+        console.log('Ball direction:', ballDirection.x.toFixed(3), ballDirection.y.toFixed(3), ballDirection.z.toFixed(3));
+        
+        if (!this.goalieMixer) {
+            console.log('❌ No goalie mixer found!');
+            return;
+        }
+        
+        // Determine which save animation to play based on ball direction
+        let saveAnimation = null;
+        let animationName = '';
+        
+        if (ballDirection.x < -0.1) { // Ball going left
+            saveAnimation = this.goalieSaveLAnimation;
+            animationName = 'save_L';
+            console.log('🎯 Ball going LEFT - using save_L animation');
+        } else if (ballDirection.x > 0.1) { // Ball going right
+            saveAnimation = this.goalieSaveRAnimation;
+            animationName = 'save_R';
+            console.log('🎯 Ball going RIGHT - using save_R animation');
+        } else {
+            console.log('🎯 Ball going CENTER - no save animation needed');
+        }
+        
+        if (saveAnimation) {
+            console.log('✅ Playing goalie', animationName, 'animation');
+            
+            // Stop current animation
+            if (this.goalieCurrentAnimation) {
+                this.goalieCurrentAnimation.stop();
+            }
+            
+            // Play save animation at double speed
+            this.goalieCurrentAnimation = this.goalieMixer.clipAction(saveAnimation);
+            this.goalieCurrentAnimation.reset();
+            this.goalieCurrentAnimation.setLoop(THREE.LoopOnce);
+            this.goalieCurrentAnimation.setEffectiveTimeScale(2.0); // Double speed
+            this.goalieCurrentAnimation.play();
+            
+            console.log('✅ Goalie save animation started');
+            
+            // Return to idle after save animation completes (faster due to double speed)
+            setTimeout(() => {
+                if (this.goalieIdleAnimation && this.goalieMixer) {
+                    console.log('🔄 Returning goalie to idle animation');
+                    this.goalieCurrentAnimation = this.goalieMixer.clipAction(this.goalieIdleAnimation);
+                    this.goalieCurrentAnimation.reset();
+                    this.goalieCurrentAnimation.play();
+                }
+            }, 1000); // 1 second for double-speed save animation
+        } else {
+            console.log('❌ No save animation found for ball direction:', ballDirection.x);
+            console.log('Available animations:', this.goalieAnimations?.map(a => a.name) || 'None');
+        }
+    }
+    
+    loadKickSound() {
+        console.log('=== LOADING KICK SOUND FUNCTION CALLED ===');
+        console.log('=== LOADING KICK SOUND ===');
+        console.log('Attempting to load: sounds/ball_kick.mp3');
+        
+        // First try HTML5 audio as a fallback
+        this.html5KickSound = new Audio('sounds/ball_kick.mp3');
+        this.html5KickSound.volume = 0.5;
+        this.html5KickSound.preload = 'auto';
+        
+        console.log('HTML5 Audio object created:', this.html5KickSound);
+        console.log('Audio src:', this.html5KickSound.src);
+        
+        // Test if HTML5 audio loads
+        this.html5KickSound.addEventListener('canplaythrough', () => {
+            console.log('✅ HTML5 audio loaded successfully');
+            console.log('Audio duration:', this.html5KickSound.duration);
+        });
+        
+        this.html5KickSound.addEventListener('error', (e) => {
+            console.error('❌ HTML5 audio error:', e);
+            console.error('Error details:', e.target.error);
+        });
+        
+        this.html5KickSound.addEventListener('loadstart', () => {
+            console.log('🔄 HTML5 audio loading started');
+        });
+        
+        // Also try Three.js audio loader
+        console.log('Attempting Three.js audio loader...');
+        const audioLoader = new THREE.AudioLoader();
+        
+        // Load the kick sound
+        audioLoader.load('sounds/ball_kick.mp3', (audioBuffer) => {
+            console.log('✅ Three.js kick sound loaded successfully');
+            
+            // Create audio listener and add to camera
+            const audioListener = new THREE.AudioListener();
+            this.camera.add(audioListener);
+            
+            // Create simple audio (not positional) for now
+            this.kickSound = new THREE.Audio(audioListener);
+            this.kickSound.setBuffer(audioBuffer);
+            this.kickSound.setVolume(0.5); // Set volume to 50%
+            
+            console.log('✅ Three.js kick sound setup complete');
+        }, (progress) => {
+            console.log('🔄 Loading Three.js kick sound progress:', (progress.loaded / progress.total * 100) + '%');
+        }, (error) => {
+            console.error('❌ Error loading Three.js kick sound:', error);
+        });
+        
+        console.log('=== KICK SOUND LOADING INITIATED ===');
     }
     
     setupAnimations(gltf) {
@@ -891,7 +1155,7 @@ class GLBGame {
         
         // Keyboard controls
         document.addEventListener('keydown', (event) => {
-            console.log('Keydown event received:', event.code);
+        // Reduced key logging
             this.handleKeyDown(event);
         });
         
@@ -899,11 +1163,11 @@ class GLBGame {
             this.handleKeyUp(event);
         });
         
-        console.log('Event listeners set up successfully');
+        // Event listeners set up
     }
     
     handleKeyDown(event) {
-        console.log('Key pressed:', event.code);
+        // Reduced key logging
         this.pressedKeys.add(event.code);
         
         const cameraMoveSpeed = 0.5;
@@ -990,20 +1254,16 @@ class GLBGame {
                 this.playAnimation(3);
                 break;
             case 'Space':
+                console.log('Space key pressed - checking ball position before kick');
                 this.playKickAnimation();
                 break;
             case 'KeyL':
                 this.toggleLighting();
                 break;
             case 'KeyR':
-                if (this.goalScored) {
-                    console.log('Resetting ball from goal area');
-                    this.goalScored = false;
-                    this.resetBall();
-                } else {
-                    console.log('Kick ball triggered by R key');
-                    this.playKickAnimation();
-                }
+                console.log('R key pressed - resetting ball');
+                this.goalScored = false;
+                this.resetBall();
                 break;
             case 'KeyT':
                 console.log('Test reset - calling resetBall directly');
@@ -1049,7 +1309,7 @@ class GLBGame {
         
         // Debug: Log pressed keys and movement state
         if (this.pressedKeys.size > 0) {
-            console.log('Pressed keys:', Array.from(this.pressedKeys), 'deltaX:', deltaX, 'deltaZ:', deltaZ, 'isMoving:', this.isMoving);
+        // Reduced movement logging
         }
         
         // Only move if any movement keys are pressed
@@ -1140,6 +1400,43 @@ class GLBGame {
     
     playKickAnimation() {
         if (this.mixer && this.kickAnimation) {
+            // First check if ball exists
+            if (!this.ball) {
+                console.log('❌ KICK BLOCKED: No ball found!');
+                return;
+            }
+            
+            // Check if ball has already been kicked
+            if (this.ballKicked) {
+                console.log('❌ KICK BLOCKED: Ball has already been kicked!');
+                return;
+            }
+            
+            // Check if ball is in its initial reset position before allowing kick
+            const initialPosition = new THREE.Vector3(-3.9, 0.5, -56.25); // Use y=0.5 to match ground level
+            const currentPos = this.ball.position;
+            
+            // Check each axis separately with appropriate tolerance
+            const xDiff = Math.abs(currentPos.x - initialPosition.x);
+            const yDiff = Math.abs(currentPos.y - initialPosition.y);
+            const zDiff = Math.abs(currentPos.z - initialPosition.z);
+            
+            const tolerance = 0.5; // Reduced tolerance for more precise checking
+            
+            console.log('=== KICK POSITION CHECK ===');
+            console.log('Current ball position:', currentPos);
+            console.log('Expected position:', initialPosition);
+            console.log('Differences - X:', xDiff.toFixed(2), 'Y:', yDiff.toFixed(2), 'Z:', zDiff.toFixed(2));
+            console.log('Tolerance:', tolerance);
+            
+            if (xDiff > tolerance || yDiff > tolerance || zDiff > tolerance) {
+                console.log('❌ KICK BLOCKED: Ball is not in reset position!');
+                console.log('Ball must be within', tolerance, 'units of reset position to kick');
+                return; // Don't play kick animation if ball is not reset
+            }
+            
+            console.log('✅ Ball is in reset position, proceeding with kick animation');
+            
             // Stop current animation
             if (this.currentAnimation) {
                 this.currentAnimation.stop();
@@ -1150,7 +1447,32 @@ class GLBGame {
             this.currentAnimation.reset();
             this.currentAnimation.setLoop(THREE.LoopOnce);
             this.currentAnimation.play();
-            console.log('Playing kick animation:', this.kickAnimation.name || 'Unnamed');
+        // Reduced animation logging
+            
+            // Calculate target once and store it for both goalie animation and ball kick
+            const targetOptions = [
+                { x: 0, name: 'center' },
+                { x: 11, name: 'middle right' },
+                { x: -11, name: 'middle left' }
+            ];
+            const selectedTarget = targetOptions[Math.floor(Math.random() * targetOptions.length)];
+            const collisionBoxCenterZ = -111;
+            const collisionBoxCenterY = 5;
+            const randomX = selectedTarget.x + (Math.random() - 0.5) * 1;
+            const randomY = collisionBoxCenterY + (Math.random() - 0.5) * 0.5;
+            const randomZ = collisionBoxCenterZ + (Math.random() - 0.5) * 0.5;
+            const targetPosition = new THREE.Vector3(randomX, randomY, randomZ);
+            const direction = new THREE.Vector3();
+            direction.subVectors(targetPosition, this.ball.position);
+            direction.normalize();
+            
+            // Store the direction for use in kickBall()
+            this.ballDirection = direction;
+            
+            // Trigger goalie save animation 0.5 seconds before ball moves (250ms after kick animation starts)
+            setTimeout(() => {
+                this.playGoalieSaveAnimation(direction);
+            }, 250); // 0.5 seconds before ball moves (750ms - 500ms = 250ms)
             
             // Kick the ball towards the goal after a 0.75-second delay
             setTimeout(() => {
@@ -1250,6 +1572,11 @@ class GLBGame {
             this.mixer.update(deltaTime);
         }
         
+        // Update goalie animation mixer
+        if (this.goalieMixer) {
+            this.goalieMixer.update(deltaTime);
+        }
+        
         // Update controls
         this.controls.update();
         
@@ -1281,8 +1608,44 @@ document.addEventListener('DOMContentLoaded', () => {
         // Load the ball
         game.loadBall();
         
+        // Load the goalie
+        game.loadGoalie();
+        
+        // Load the kick sound
+        console.log('About to call loadKickSound()...');
+        game.loadKickSound();
+        console.log('loadKickSound() called');
+        
         // Make game globally accessible for debugging
         window.game = game;
+        
+        // Add test sound button functionality
+        const testSoundButton = document.getElementById('testSound');
+        if (testSoundButton) {
+            testSoundButton.addEventListener('click', () => {
+                console.log('Test sound button clicked');
+                if (game.html5KickSound) {
+                    console.log('Playing test sound with HTML5 audio');
+                    game.html5KickSound.currentTime = 0;
+                    game.html5KickSound.play().then(() => {
+                        console.log('Test sound played successfully');
+                    }).catch(error => {
+                        console.error('Test sound failed:', error);
+                    });
+                } else {
+                    console.log('HTML5 audio not loaded yet');
+                }
+            });
+        }
+        
+        // Add load sound button functionality
+        const loadSoundButton = document.getElementById('loadSound');
+        if (loadSoundButton) {
+            loadSoundButton.addEventListener('click', () => {
+                console.log('Load sound button clicked');
+                game.loadKickSound();
+            });
+        }
         
         // Test if reset functions work
         console.log('Testing reset functions...');
