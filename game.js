@@ -37,6 +37,40 @@ class GLBGame {
             objectCount: 0
         };
         
+        // Quiz system properties
+        this.quizActive = false;
+        this.currentQuestionIndex = 0;
+        this.quizScore = 0;
+        this.quizQuestions = [
+            {
+                question: "What is the capital of France?",
+                answers: ["London", "Paris", "Berlin", "Madrid"],
+                correct: 1
+            },
+            {
+                question: "What is 2 + 2?",
+                answers: ["3", "4", "5", "6"],
+                correct: 1
+            },
+            {
+                question: "What is the largest planet in our solar system?",
+                answers: ["Earth", "Saturn", "Jupiter", "Neptune"],
+                correct: 2
+            },
+            {
+                question: "Who painted the Mona Lisa?",
+                answers: ["Van Gogh", "Picasso", "Da Vinci", "Michelangelo"],
+                correct: 2
+            },
+            {
+                question: "What is the chemical symbol for gold?",
+                answers: ["Go", "Gd", "Au", "Ag"],
+                correct: 2
+            }
+        ];
+        this.quizAnswered = false;
+        this.quizCorrect = false;
+        
         this.init();
     }
     
@@ -433,6 +467,7 @@ class GLBGame {
         
         this.ballKicked = true;
         this.ballLanded = false; // Reset landing flag when ball is kicked
+        
         console.log('Velocity:', this.ballVelocity.x.toFixed(2), this.ballVelocity.y.toFixed(2), this.ballVelocity.z.toFixed(2));
     }
     
@@ -791,6 +826,12 @@ class GLBGame {
         this.ballAttachedToGoalie = false; // Reset attachment flag
         this.ballBouncedOffGoalie = false; // Reset bounce flag
         
+        // Reset quiz state for next question (only if not in quiz mode)
+        if (!this.quizActive) {
+            this.quizAnswered = false;
+            this.quizCorrect = false;
+        }
+        
         // Reset goalie collision box to default position
         this.resetGoalieCollisionBox();
         
@@ -1065,8 +1106,80 @@ class GLBGame {
         }
     }
     
+    playGoalieMoveAwayAnimation(ballDirection) {
+        console.log('=== GOALIE MOVE AWAY ANIMATION ===');
+        console.log('Ball direction:', ballDirection.x.toFixed(3), ballDirection.y.toFixed(3), ballDirection.z.toFixed(3));
+        
+        if (!this.goalieMixer) {
+            console.log('❌ No goalie mixer found!');
+            return;
+        }
+        
+        // Determine which direction to move away from the ball
+        let moveAwayAnimation = null;
+        let animationName = '';
+        
+        if (ballDirection.x < -0.1) { // Ball going left, move goalie right
+            moveAwayAnimation = this.goalieSaveRAnimation; // Use right save animation to move right
+            animationName = 'move_right_away';
+            console.log('🎯 Ball going LEFT - goalie moving RIGHT away');
+        } else if (ballDirection.x > 0.1) { // Ball going right, move goalie left
+            moveAwayAnimation = this.goalieSaveLAnimation; // Use left save animation to move left
+            animationName = 'move_left_away';
+            console.log('🎯 Ball going RIGHT - goalie moving LEFT away');
+        } else {
+            // Ball going straight, randomly pick a direction
+            const randomDirection = Math.random() > 0.5;
+            if (randomDirection) {
+                moveAwayAnimation = this.goalieSaveLAnimation;
+                animationName = 'move_left_away';
+                console.log('🎯 Ball going STRAIGHT - goalie moving LEFT away (random)');
+            } else {
+                moveAwayAnimation = this.goalieSaveRAnimation;
+                animationName = 'move_right_away';
+                console.log('🎯 Ball going STRAIGHT - goalie moving RIGHT away (random)');
+            }
+        }
+        
+        if (moveAwayAnimation) {
+            console.log('✅ Playing goalie', animationName, 'animation');
+            
+            // Stop current animation
+            if (this.goalieCurrentAnimation) {
+                this.goalieCurrentAnimation.stop();
+            }
+            
+            // Play move away animation at double speed (same as save animation)
+            this.goalieCurrentAnimation = this.goalieMixer.clipAction(moveAwayAnimation);
+            this.goalieCurrentAnimation.reset();
+            this.goalieCurrentAnimation.setLoop(THREE.LoopOnce);
+            this.goalieCurrentAnimation.setEffectiveTimeScale(2.0); // Double speed (same as save)
+            this.goalieCurrentAnimation.play();
+            
+            console.log('Goalie move away animation started at double speed');
+            
+            // Return to idle after move away animation completes (faster due to double speed)
+            setTimeout(() => {
+                if (this.goalieIdleAnimation && this.goalieMixer) {
+                    console.log('🔄 Returning goalie to idle after moving away');
+                    this.goalieCurrentAnimation = this.goalieMixer.clipAction(this.goalieIdleAnimation);
+                    this.goalieCurrentAnimation.reset();
+                    this.goalieCurrentAnimation.play();
+                }
+            }, 1000); // 1 second for double-speed move away animation
+        } else {
+            console.log('❌ No move away animation found');
+        }
+    }
+    
     checkGoalieCollision() {
         if (!this.ball || !this.goalie || !this.goalieCurrentAnimation || !this.goalieCollisionBox) return false;
+        
+        // QUIZ INTEGRATION: If quiz is active and answer is correct, goalie doesn't save
+        if (this.quizActive && this.quizAnswered && this.quizCorrect) {
+            console.log('🎯 CORRECT ANSWER! Goalie lets the ball through!');
+            return false; // No collision = goalie doesn't save
+        }
         
         // Only check collision during save animations (not idle)
         const isSaveAnimation = this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveLAnimation) ||
@@ -1619,9 +1732,19 @@ class GLBGame {
             // Store the direction for use in kickBall()
             this.ballDirection = direction;
             
-            // Trigger goalie save animation 0.3 seconds before ball moves (450ms after kick animation starts)
+            // Trigger goalie save animation ONLY if quiz answer is wrong
             setTimeout(() => {
-                this.playGoalieSaveAnimation(direction);
+                if (this.quizActive && this.quizAnswered && !this.quizCorrect) {
+                    console.log('❌ Wrong answer! Goalie will save the ball!');
+                    this.playGoalieSaveAnimation(direction);
+                } else if (this.quizActive && this.quizAnswered && this.quizCorrect) {
+                    console.log('✅ Correct answer! Goalie will move away from the ball!');
+                    // Move goalie in opposite direction of ball for correct answers
+                    this.playGoalieMoveAwayAnimation(direction);
+                } else {
+                    // Default behavior for non-quiz mode
+                    this.playGoalieSaveAnimation(direction);
+                }
             }, 450); // 0.3 seconds before ball moves (750ms - 300ms = 450ms)
             
             // Kick the ball towards the goal after a 0.75-second delay
@@ -1742,6 +1865,135 @@ class GLBGame {
         // Render the scene
         this.renderer.render(this.scene, this.camera);
     }
+    
+    // Quiz system methods
+    startQuiz() {
+        this.quizActive = true;
+        this.currentQuestionIndex = 0;
+        this.quizScore = 0;
+        this.quizAnswered = false;
+        this.quizCorrect = false;
+        
+        this.updateQuizUI();
+        console.log('Quiz started!');
+    }
+    
+    updateQuizUI() {
+        const questionText = document.getElementById('questionText');
+        const answerButtons = document.getElementById('answerButtons');
+        const scoreElement = document.getElementById('score');
+        const questionNumberElement = document.getElementById('questionNumber');
+        const totalQuestionsElement = document.getElementById('totalQuestions');
+        const startQuizButton = document.getElementById('startQuiz');
+        
+        if (!this.quizActive) {
+            questionText.textContent = 'Click "Start Quiz" to begin!';
+            answerButtons.innerHTML = '';
+            startQuizButton.style.display = 'block';
+            return;
+        }
+        
+        const currentQuestion = this.quizQuestions[this.currentQuestionIndex];
+        questionText.textContent = `${currentQuestion.question}\n\nClick an answer to kick the ball!`;
+        
+        // Clear previous buttons
+        answerButtons.innerHTML = '';
+        
+        // Create answer buttons
+        currentQuestion.answers.forEach((answer, index) => {
+            const button = document.createElement('button');
+            button.textContent = answer;
+            button.style.cssText = 'display: block; width: 100%; margin: 5px 0; padding: 8px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer;';
+            button.addEventListener('click', () => this.answerQuestion(index));
+            answerButtons.appendChild(button);
+        });
+        
+        // Update score display
+        scoreElement.textContent = this.quizScore;
+        questionNumberElement.textContent = this.currentQuestionIndex + 1;
+        totalQuestionsElement.textContent = this.quizQuestions.length;
+        
+        startQuizButton.style.display = 'none';
+    }
+    
+    answerQuestion(answerIndex) {
+        if (this.quizAnswered) return;
+        
+        this.quizAnswered = true;
+        const currentQuestion = this.quizQuestions[this.currentQuestionIndex];
+        this.quizCorrect = (answerIndex === currentQuestion.correct);
+        
+        if (this.quizCorrect) {
+            this.quizScore++;
+            console.log('✅ CORRECT ANSWER! Score:', this.quizScore);
+            console.log('Quiz state - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+        } else {
+            console.log('❌ WRONG ANSWER! Correct was:', currentQuestion.correct);
+            console.log('Quiz state - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+        }
+        
+        // Update button colors
+        const buttons = document.querySelectorAll('#answerButtons button');
+        buttons.forEach((button, index) => {
+            if (index === currentQuestion.correct) {
+                button.style.background = '#4CAF50'; // Green for correct
+            } else if (index === answerIndex && !this.quizCorrect) {
+                button.style.background = '#F44336'; // Red for wrong
+            }
+            button.disabled = true;
+        });
+        
+        // Immediately trigger kick sequence after answering
+        console.log('🎯 Answer selected! Triggering kick sequence...');
+        this.triggerKickSequence();
+        
+        // Move to next question after kick sequence completes
+        setTimeout(() => {
+            this.nextQuestion();
+        }, 4000); // Longer delay to allow kick sequence to complete
+    }
+    
+    nextQuestion() {
+        this.currentQuestionIndex++;
+        
+        if (this.currentQuestionIndex >= this.quizQuestions.length) {
+            this.endQuiz();
+        } else {
+            this.quizAnswered = false;
+            this.quizCorrect = false;
+            this.updateQuizUI();
+            console.log('🎯 Ready for next question! Click an answer to trigger kick sequence.');
+        }
+    }
+    
+    endQuiz() {
+        this.quizActive = false;
+        const questionText = document.getElementById('questionText');
+        const answerButtons = document.getElementById('answerButtons');
+        const startQuizButton = document.getElementById('startQuiz');
+        
+        questionText.textContent = `Quiz Complete! Final Score: ${this.quizScore}/${this.quizQuestions.length}`;
+        answerButtons.innerHTML = '';
+        startQuizButton.textContent = 'Restart Quiz';
+        startQuizButton.style.display = 'block';
+        
+        console.log('Quiz ended! Final score:', this.quizScore);
+    }
+    
+    triggerKickSequence() {
+        console.log('🎯 Starting kick sequence...');
+        console.log('Quiz state at kick start - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+        
+        // Reset ball to starting position first
+        this.resetBall();
+        
+        // Wait a moment for ball to reset, then start kick animation
+        setTimeout(() => {
+            console.log('🎯 Starting kick animation...');
+            console.log('Quiz state before kick animation - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+            this.playKickAnimation();
+        }, 500);
+    }
 }
 
 // Initialize the game when the page loads
@@ -1794,6 +2046,15 @@ document.addEventListener('DOMContentLoaded', () => {
             loadSoundButton.addEventListener('click', () => {
                 console.log('Load sound button clicked');
                 game.loadKickSound();
+            });
+        }
+        
+        // Add quiz functionality
+        const startQuizButton = document.getElementById('startQuiz');
+        if (startQuizButton) {
+            startQuizButton.addEventListener('click', () => {
+                console.log('Start quiz button clicked');
+                game.startQuiz();
             });
         }
         
