@@ -30,6 +30,8 @@ class GLBGame {
         this.kickSound = null;
         this.audioContextInitialized = false;
         this.ballLanded = false;
+        this.ballAttachedToGoalie = false;
+        this.ballBouncedOffGoalie = false;
         this.stats = {
             fps: 0,
             objectCount: 0
@@ -425,7 +427,7 @@ class GLBGame {
         const kickPower = 1.5; // Reduced ball speed
         this.ballVelocity.set(
             direction.x * kickPower,
-            direction.y * kickPower + 0.2, // Slightly higher trajectory
+            direction.y * kickPower + 0.1, // Lower trajectory
             direction.z * kickPower
         );
         
@@ -438,6 +440,12 @@ class GLBGame {
         if (!this.ball || (!this.ballKicked && !this.goalScored)) {
             this.ballStopTimer = 0;
             return;
+        }
+        
+        // Check for goalie collision/save
+        if (this.ballKicked && !this.goalScored && this.checkGoalieCollision()) {
+            this.handleGoalieSave();
+            return; // Stop physics update if ball is saved
         }
         
         // Minimal debug logging - only when ball is kicked and every 60 frames, but stop once landed
@@ -780,6 +788,11 @@ class GLBGame {
         this.ballStopTimer = 0;
         this.goalScored = false;
         this.ballLanded = false; // Reset landing flag
+        this.ballAttachedToGoalie = false; // Reset attachment flag
+        this.ballBouncedOffGoalie = false; // Reset bounce flag
+        
+        // Reset goalie collision box to default position
+        this.resetGoalieCollisionBox();
         
         this.resetCharacter();
     }
@@ -866,6 +879,9 @@ class GLBGame {
                 
                 this.scene.add(this.goalie);
                 
+                // Create visual collision box for goalie
+                this.createGoalieCollisionBox();
+                
                 console.log('Goalie positioned in front of goalie box');
                 
                 // Update stats
@@ -878,6 +894,29 @@ class GLBGame {
                 console.error('Error loading goalie model:', error);
             }
         );
+    }
+    
+    createGoalieCollisionBox() {
+        // Create a wireframe box to show the goalie's collision area
+        const collisionGeometry = new THREE.BoxGeometry(8, 6, 2); // Width, Height, Depth
+        const collisionMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00, // Green color
+            wireframe: true,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        this.goalieCollisionBox = new THREE.Mesh(collisionGeometry, collisionMaterial);
+        
+        // Position collision box at goalie's position
+        this.goalieCollisionBox.position.copy(this.goalie.position);
+        
+        // Make it slightly above ground level
+        this.goalieCollisionBox.position.y += 3;
+        
+        this.scene.add(this.goalieCollisionBox);
+        
+        console.log('Goalie collision box created - Green wireframe rectangle');
     }
     
     loadBall() {
@@ -893,7 +932,7 @@ class GLBGame {
         
         const ball = new THREE.Mesh(ballGeometry, ballMaterial);
         ball.position.set(-3.9, 0.5, -56.25); // Position in front of the character, on the ground (y = 0.5)
-        ball.scale.set(2, 2, 2); // Make it a bit bigger for visibility
+        ball.scale.set(1, 1, 1); // Half the previous size
                 
                 // Enable shadows for the ball
         ball.castShadow = true;
@@ -1024,6 +1063,117 @@ class GLBGame {
             console.log('❌ No save animation found for ball direction:', ballDirection.x);
             console.log('Available animations:', this.goalieAnimations?.map(a => a.name) || 'None');
         }
+    }
+    
+    checkGoalieCollision() {
+        if (!this.ball || !this.goalie || !this.goalieCurrentAnimation || !this.goalieCollisionBox) return false;
+        
+        // Only check collision during save animations (not idle)
+        const isSaveAnimation = this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveLAnimation) ||
+                               this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveRAnimation);
+        
+        if (!isSaveAnimation) return false;
+        
+        // Move collision box with goalie during save animations
+        this.updateGoalieCollisionBox();
+        
+        // Check if ball is inside the collision box
+        const ballPos = this.ball.position;
+        const boxPos = this.goalieCollisionBox.position;
+        
+        // Box dimensions (half-widths)
+        const boxWidth = 4;   // Half of 8
+        const boxHeight = 3;  // Half of 6
+        const boxDepth = 1;   // Half of 2
+        
+        // Check if ball is within box bounds
+        const inBox = Math.abs(ballPos.x - boxPos.x) < boxWidth &&
+                     Math.abs(ballPos.y - boxPos.y) < boxHeight &&
+                     Math.abs(ballPos.z - boxPos.z) < boxDepth;
+        
+        if (inBox && !this.ballBouncedOffGoalie) {
+            console.log('🎯 GOALIE DEFLECT! Ball hit goalie collision box');
+            this.ballBouncedOffGoalie = true; // Prevent multiple bounces
+            return true;
+        }
+        
+        return false;
+    }
+    
+    updateGoalieCollisionBox() {
+        if (!this.goalieCollisionBox || !this.goalie) return;
+        
+        // Move collision box with goalie during save animations
+        const goaliePos = this.goalie.position;
+        
+        // Determine save direction and adjust collision box position
+        if (this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveLAnimation)) {
+            // Move collision box to the left during left save
+            this.goalieCollisionBox.position.set(
+                goaliePos.x - 10, // Move left 10 units
+                goaliePos.y + 3, // Keep height
+                goaliePos.z + 5  // Move forward 5 units
+            );
+        } else if (this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveRAnimation)) {
+            // Move collision box to the right during right save
+            this.goalieCollisionBox.position.set(
+                goaliePos.x + 10, // Move right 10 units
+                goaliePos.y + 3, // Keep height
+                goaliePos.z + 5  // Move forward 5 units
+            );
+        } else {
+            // Default position during idle
+            this.goalieCollisionBox.position.set(
+                goaliePos.x,
+                goaliePos.y + 3,
+                goaliePos.z + 1
+            );
+        }
+    }
+    
+    resetGoalieCollisionBox() {
+        if (!this.goalieCollisionBox || !this.goalie) return;
+        
+        // Reset collision box to default centered position
+        const goaliePos = this.goalie.position;
+        this.goalieCollisionBox.position.set(
+            goaliePos.x,      // Centered on goalie
+            goaliePos.y + 3,  // 3 units above goalie
+            goaliePos.z + 1   // Slightly forward
+        );
+        
+        console.log('🔄 Goalie collision box reset to default position');
+    }
+    
+    handleGoalieSave() {
+        if (!this.ball) return;
+        
+        console.log('🏆 GOALIE DEFLECTED THE BALL!');
+        
+        // Calculate bounce direction based on which side the goalie is saving
+        let bounceDirection = new THREE.Vector3();
+        
+        if (this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveLAnimation)) {
+            // Left save - bounce ball to the left
+            bounceDirection.set(-1, 0.3, 0.5); // Left, slightly up, forward
+        } else if (this.goalieCurrentAnimation === this.goalieMixer.clipAction(this.goalieSaveRAnimation)) {
+            // Right save - bounce ball to the right
+            bounceDirection.set(1, 0.3, 0.5); // Right, slightly up, forward
+        } else {
+            // Default bounce - straight back
+            bounceDirection.set(0, 0.2, 1); // Straight back, slightly up
+        }
+        
+        // Normalize and apply bounce force
+        bounceDirection.normalize();
+        const bouncePower = 1.2; // Bounce strength
+        this.ballVelocity.set(
+            bounceDirection.x * bouncePower,
+            bounceDirection.y * bouncePower,
+            bounceDirection.z * bouncePower
+        );
+        
+        console.log('Ball bounced with velocity:', this.ballVelocity.x.toFixed(2), this.ballVelocity.y.toFixed(2), this.ballVelocity.z.toFixed(2));
     }
     
     loadKickSound() {
@@ -1450,8 +1600,8 @@ class GLBGame {
         // Reduced animation logging
             
             // Calculate target once and store it for both goalie animation and ball kick
+            // Only left or right targets - no center shots
             const targetOptions = [
-                { x: 0, name: 'center' },
                 { x: 11, name: 'middle right' },
                 { x: -11, name: 'middle left' }
             ];
@@ -1469,10 +1619,10 @@ class GLBGame {
             // Store the direction for use in kickBall()
             this.ballDirection = direction;
             
-            // Trigger goalie save animation 0.5 seconds before ball moves (250ms after kick animation starts)
+            // Trigger goalie save animation 0.3 seconds before ball moves (450ms after kick animation starts)
             setTimeout(() => {
                 this.playGoalieSaveAnimation(direction);
-            }, 250); // 0.5 seconds before ball moves (750ms - 500ms = 250ms)
+            }, 450); // 0.3 seconds before ball moves (750ms - 300ms = 450ms)
             
             // Kick the ball towards the goal after a 0.75-second delay
             setTimeout(() => {
