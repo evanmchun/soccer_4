@@ -135,8 +135,22 @@ class GLBGame {
         this.controls.enablePan = true;
         this.controls.maxDistance = 300;
         this.controls.minDistance = 3;
+        
+        // Restrict camera movement to prevent looking up from below field level
+        this.controls.maxPolarAngle = 87 * Math.PI / 180; // Maximum 87 degrees - just below horizontal
+        this.controls.minPolarAngle = 0; // Allow looking straight down (minimum 0 degrees - can look down as much as wanted)
+        
         // Set the target to the goal post location so zoom focuses on the goal
         this.controls.target.set(0, 0,-90);
+        
+        // Add event listener to log camera angles when moved
+        this.controls.addEventListener('change', () => {
+            const polarAngle = this.controls.getPolarAngle();
+            const azimuthalAngle = this.controls.getAzimuthalAngle();
+            const distance = this.controls.getDistance();
+            
+            console.log(`Camera Angles - Polar: ${polarAngle.toFixed(3)} rad (${(polarAngle * 180 / Math.PI).toFixed(1)}°), Azimuthal: ${azimuthalAngle.toFixed(3)} rad (${(azimuthalAngle * 180 / Math.PI).toFixed(1)}°), Distance: ${distance.toFixed(1)}`);
+        });
     }
     
     createLights() {
@@ -2291,9 +2305,6 @@ class GLBGame {
     updateQuizUI() {
         const questionText = document.getElementById('questionText');
         const answerButtons = document.getElementById('answerButtons');
-        const scoreElement = document.getElementById('score');
-        const questionNumberElement = document.getElementById('questionNumber');
-        const totalQuestionsElement = document.getElementById('totalQuestions');
         const startQuizButton = document.getElementById('startQuiz');
         
         if (!this.quizActive) {
@@ -2318,11 +2329,6 @@ class GLBGame {
             answerButtons.appendChild(button);
         });
         
-        // Update score display
-        scoreElement.textContent = this.quizScore;
-        questionNumberElement.textContent = this.currentQuestionIndex + 1;
-        totalQuestionsElement.textContent = this.quizQuestions.length;
-        
         // Update the top-right counter
         const currentQuestionCounter = document.getElementById('currentQuestion');
         const totalQuestionsCounter = document.getElementById('totalQuestionsCounter');
@@ -2331,6 +2337,12 @@ class GLBGame {
         }
         if (totalQuestionsCounter) {
             totalQuestionsCounter.textContent = this.quizQuestions.length;
+        }
+        
+        // Update the top-left score display
+        const topScoreElement = document.getElementById('topScore');
+        if (topScoreElement) {
+            topScoreElement.textContent = this.quizScore;
         }
         
         startQuizButton.style.display = 'none';
