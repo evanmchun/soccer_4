@@ -89,8 +89,13 @@ class GLBGame {
         this.scene.background = new THREE.Color(0x87CEEB); // Sky blue
         this.scene.fog = new THREE.Fog(0x87CEEB, 30, 250); // Lighter fog for outdoor feel
         
-        // Create soccer field
-        this.createSoccerField();
+        // Stadium will provide the field, no need to create separate field
+        this.createTurfField();
+        
+        // Automatically create sidelines from your corner coordinates
+        setTimeout(() => {
+            this.createSidelinesFromCorners(-80.20, 0.01, -120.65, 80.20, 0.01, -120.65, -80.20, 0.01, 120.65, 68.56, 0.01, 120.65);
+        }, 1000); // Wait 1 second for stadium to load
     }
     
     createCamera() {
@@ -134,85 +139,6 @@ class GLBGame {
         this.controls.target.set(0, 0,-90);
     }
     
-    createSoccerField() {
-        // Create grass field (extended to fully cover goal posts and collision area)
-        const fieldGeometry = new THREE.PlaneGeometry(120, 250);
-        const fieldMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
-        const field = new THREE.Mesh(fieldGeometry, fieldMaterial);
-        field.rotation.x = -Math.PI / 2;
-        field.receiveShadow = true;
-        this.scene.add(field);
-        
-        // Create field lines
-        this.createFieldLines();
-        
-        // Create center circle
-        this.createCenterCircle();
-    }
-    
-    createFieldLines() {
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-        
-        // Field boundary (extended to fully cover goal posts and collision area)
-        const boundaryGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-60, 0.01, -125),
-            new THREE.Vector3(60, 0.01, -125),
-            new THREE.Vector3(60, 0.01, 125),
-            new THREE.Vector3(-60, 0.01, 125),
-            new THREE.Vector3(-60, 0.01, -125)
-        ]);
-        const boundary = new THREE.Line(boundaryGeometry, lineMaterial);
-        this.scene.add(boundary);
-        
-        // Center line (3x bigger)
-        const centerLineGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-60, 0.01, 0),
-            new THREE.Vector3(60, 0.01, 0)
-        ]);
-        const centerLine = new THREE.Line(centerLineGeometry, lineMaterial);
-        this.scene.add(centerLine);
-        
-        // Goal areas (extended to fully cover goal posts and collision area)
-        const goalAreaGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-18, 0.01, -125),
-            new THREE.Vector3(18, 0.01, -125),
-            new THREE.Vector3(18, 0.01, -97),
-            new THREE.Vector3(-18, 0.01, -97),
-            new THREE.Vector3(-18, 0.01, -125)
-        ]);
-        const goalArea1 = new THREE.Line(goalAreaGeometry, lineMaterial);
-        this.scene.add(goalArea1);
-        
-        const goalArea2Geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-18, 0.01, 125),
-            new THREE.Vector3(18, 0.01, 125),
-            new THREE.Vector3(18, 0.01, 97),
-            new THREE.Vector3(-18, 0.01, 97),
-            new THREE.Vector3(-18, 0.01, 125)
-        ]);
-        const goalArea2 = new THREE.Line(goalArea2Geometry, lineMaterial);
-        this.scene.add(goalArea2);
-    }
-    
-    createCenterCircle() {
-        const circleGeometry = new THREE.RingGeometry(27.45, 27.75, 32); // 3x bigger
-        const circleMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff, 
-            side: THREE.DoubleSide 
-        });
-        const centerCircle = new THREE.Mesh(circleGeometry, circleMaterial);
-        centerCircle.rotation.x = -Math.PI / 2;
-        centerCircle.position.y = 0.01;
-        this.scene.add(centerCircle);
-        
-        // Center dot
-        const dotGeometry = new THREE.CircleGeometry(0.5, 16);
-        const dot = new THREE.Mesh(dotGeometry, circleMaterial);
-        dot.rotation.x = -Math.PI / 2;
-        dot.position.y = 0.02;
-        this.scene.add(dot);
-    }
-
     createLights() {
         // Bright ambient light for natural outdoor illumination
         const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
@@ -232,8 +158,8 @@ class GLBGame {
         directionalLight.shadow.camera.bottom = -30;
         this.scene.add(directionalLight);
         
-        // Bright hemisphere light for natural outdoor lighting
-        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x228B22, 0.8);
+        // Bright hemisphere light for natural outdoor lighting (removed dark green ground color)
+        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x87CEEB, 0.8);
         this.scene.add(hemisphereLight);
         
         // Fill light from the front (no shadows)
@@ -245,6 +171,436 @@ class GLBGame {
         // Removed right-side fill light to prevent bright side lighting
         
         // Removed point lights to prevent bright side lighting on character
+    }
+    
+    createTurfField() {
+        console.log('Creating turf field...');
+        
+        // Create a large turf field
+        const fieldGeometry = new THREE.PlaneGeometry(200, 300); // Large field
+        const fieldMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x228B22 // Darker green turf color
+        });
+        
+        const turfField = new THREE.Mesh(fieldGeometry, fieldMaterial);
+        turfField.rotation.x = -Math.PI / 2; // Lay flat on ground
+        turfField.position.y = 0.01; // Slightly above ground to avoid z-fighting
+        turfField.receiveShadow = true;
+        
+        this.scene.add(turfField);
+        
+        // Add field markings
+        this.createFieldMarkings();
+        
+        console.log('Turf field created!');
+    }
+    
+    createFieldMarkings() {
+        console.log('=== DEBUG: Creating field markings ===');
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+        
+        // Very thick sideline perimeter using box geometry for maximum visibility
+        const sidelineMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff
+        });
+        
+        console.log('Sideline material created:', sidelineMaterial);
+        
+        // Top sideline - using box geometry (scaled to match stadium)
+        const topSidelineGeometry = new THREE.BoxGeometry(2000, 5, 100); // 10x bigger
+        const topSideline = new THREE.Mesh(topSidelineGeometry, sidelineMaterial);
+        topSideline.position.set(0, 2.5, -1500); // 10x bigger positions
+        topSideline.name = 'topSideline';
+        this.scene.add(topSideline);
+        console.log('Top sideline added at position:', topSideline.position);
+        
+        // Bottom sideline - using box geometry (scaled to match stadium)
+        const bottomSidelineGeometry = new THREE.BoxGeometry(2000, 5, 100); // 10x bigger
+        const bottomSideline = new THREE.Mesh(bottomSidelineGeometry, sidelineMaterial);
+        bottomSideline.position.set(0, 2.5, 1500); // 10x bigger positions
+        bottomSideline.name = 'bottomSideline';
+        this.scene.add(bottomSideline);
+        console.log('Bottom sideline added at position:', bottomSideline.position);
+        
+        // Left sideline - using box geometry (scaled to match stadium)
+        const leftSidelineGeometry = new THREE.BoxGeometry(100, 5, 3000); // 10x bigger
+        const leftSideline = new THREE.Mesh(leftSidelineGeometry, sidelineMaterial);
+        leftSideline.position.set(-1000, 2.5, 0); // 10x bigger positions
+        leftSideline.name = 'leftSideline';
+        this.scene.add(leftSideline);
+        console.log('Left sideline added at position:', leftSideline.position);
+        
+        // Right sideline - using box geometry (scaled to match stadium)
+        const rightSidelineGeometry = new THREE.BoxGeometry(100, 5, 3000); // 10x bigger
+        const rightSideline = new THREE.Mesh(rightSidelineGeometry, sidelineMaterial);
+        rightSideline.position.set(1000, 2.5, 0); // 10x bigger positions
+        rightSideline.name = 'rightSideline';
+        this.scene.add(rightSideline);
+        console.log('Right sideline added at position:', rightSideline.position);
+        
+        console.log('=== DEBUG: All sidelines added to scene ===');
+        console.log('Scene children count:', this.scene.children.length);
+        
+        // Debug: List all scene children
+        this.scene.children.forEach((child, index) => {
+            if (child.name && child.name.includes('sideline')) {
+                console.log(`Scene child ${index}: ${child.name} at position:`, child.position);
+            }
+        });
+        
+        // Center line
+        const centerLineGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-100, 0.02, 0),
+            new THREE.Vector3(100, 0.02, 0)
+        ]);
+        const centerLine = new THREE.Line(centerLineGeometry, lineMaterial);
+        this.scene.add(centerLine);
+        
+        // Center circle
+        const circleGeometry = new THREE.RingGeometry(18, 18.5, 32);
+        const circleMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, 
+            side: THREE.DoubleSide 
+        });
+        const centerCircle = new THREE.Mesh(circleGeometry, circleMaterial);
+        centerCircle.rotation.x = -Math.PI / 2;
+        centerCircle.position.y = 0.02;
+        this.scene.add(centerCircle);
+        
+        // Center dot
+        const dotGeometry = new THREE.CircleGeometry(0.5, 16);
+        const dot = new THREE.Mesh(dotGeometry, circleMaterial);
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.y = 0.03;
+        this.scene.add(dot);
+        
+        // Goal areas
+        const goalAreaGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-20, 0.02, -150),
+            new THREE.Vector3(20, 0.02, -150),
+            new THREE.Vector3(20, 0.02, -120),
+            new THREE.Vector3(-20, 0.02, -120),
+            new THREE.Vector3(-20, 0.02, -150)
+        ]);
+        const goalArea1 = new THREE.Line(goalAreaGeometry, lineMaterial);
+        this.scene.add(goalArea1);
+        
+        const goalArea2Geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-20, 0.02, 150),
+            new THREE.Vector3(20, 0.02, 150),
+            new THREE.Vector3(20, 0.02, 120),
+            new THREE.Vector3(-20, 0.02, 120),
+            new THREE.Vector3(-20, 0.02, 150)
+        ]);
+        const goalArea2 = new THREE.Line(goalArea2Geometry, lineMaterial);
+        this.scene.add(goalArea2);
+        
+        console.log('Field markings with sideline added!');
+    }
+    
+    // Debug function to check sidelines - call from browser console
+    debugSidelines() {
+        console.log('=== DEBUG SIDELINES ===');
+        console.log('Scene children count:', this.scene.children.length);
+        
+        // Debug: List ALL scene children to see what's there
+        console.log('=== ALL SCENE CHILDREN ===');
+        this.scene.children.forEach((child, index) => {
+            console.log(`Child ${index}: ${child.name || 'unnamed'} (${child.type})`);
+        });
+        
+        const sidelines = [];
+        this.scene.children.forEach((child, index) => {
+            if (child.name && child.name.toLowerCase().includes('sideline')) {
+                sidelines.push(child);
+                console.log(`Found sideline: ${child.name}`);
+                console.log(`  Position:`, child.position);
+                console.log(`  Visible:`, child.visible);
+                console.log(`  Material:`, child.material);
+                console.log(`  Geometry:`, child.geometry);
+            }
+        });
+        
+        console.log(`Total sidelines found: ${sidelines.length}`);
+        
+        if (sidelines.length === 0) {
+            console.log('❌ NO SIDELINES FOUND! Something went wrong.');
+            console.log('The sidelines were added but are no longer in the scene.');
+        } else {
+            console.log('✅ Sidelines found, checking if they are visible...');
+            sidelines.forEach(sideline => {
+                console.log(`${sideline.name}: visible=${sideline.visible}, position=${sideline.position.x},${sideline.position.y},${sideline.position.z}`);
+            });
+            
+            // Debug camera position
+            console.log('=== CAMERA DEBUG ===');
+            console.log('Camera position:', this.camera.position);
+            console.log('Camera rotation:', this.camera.rotation);
+            
+            // Debug stadium scale
+            if (this.stadium) {
+                console.log('=== STADIUM DEBUG ===');
+                console.log('Stadium scale:', this.stadium.scale);
+                console.log('Stadium position:', this.stadium.position);
+            }
+            
+            // Try to make sidelines more visible by making them bigger and brighter
+            console.log('=== MAKING SIDELINES MORE VISIBLE ===');
+            sidelines.forEach(sideline => {
+                // Make them bigger
+                sideline.scale.set(2, 2, 2);
+                // Make them brighter
+                sideline.material.color.setHex(0xff0000); // Bright red for testing
+                console.log(`Made ${sideline.name} bigger and red for testing`);
+            });
+        }
+        
+        return sidelines;
+    }
+    
+    // Manual sideline positioning function - call from browser console
+    positionSidelines(topX, topY, topZ, bottomX, bottomY, bottomZ, leftX, leftY, leftZ, rightX, rightY, rightZ) {
+        console.log('=== MANUAL SIDELINE POSITIONING ===');
+        
+        // Find existing sidelines
+        const sidelines = [];
+        this.scene.children.forEach((child) => {
+            if (child.name && child.name.toLowerCase().includes('sideline')) {
+                sidelines.push(child);
+            }
+        });
+        
+        if (sidelines.length !== 4) {
+            console.log('❌ Expected 4 sidelines, found:', sidelines.length);
+            return;
+        }
+        
+        // Position sidelines based on provided coordinates
+        const topSideline = sidelines.find(s => s.name === 'topSideline');
+        const bottomSideline = sidelines.find(s => s.name === 'bottomSideline');
+        const leftSideline = sidelines.find(s => s.name === 'leftSideline');
+        const rightSideline = sidelines.find(s => s.name === 'rightSideline');
+        
+        if (topSideline) {
+            topSideline.position.set(topX, topY, topZ);
+            console.log(`✅ Top sideline positioned at: (${topX}, ${topY}, ${topZ})`);
+        }
+        
+        if (bottomSideline) {
+            bottomSideline.position.set(bottomX, bottomY, bottomZ);
+            console.log(`✅ Bottom sideline positioned at: (${bottomX}, ${bottomY}, ${bottomZ})`);
+        }
+        
+        if (leftSideline) {
+            leftSideline.position.set(leftX, leftY, leftZ);
+            console.log(`✅ Left sideline positioned at: (${leftX}, ${leftY}, ${leftZ})`);
+        }
+        
+        if (rightSideline) {
+            rightSideline.position.set(rightX, rightY, rightZ);
+            console.log(`✅ Right sideline positioned at: (${rightX}, ${rightY}, ${rightZ})`);
+        }
+        
+        // Make them bright red and bigger for testing
+        sidelines.forEach(sideline => {
+            sideline.material.color.setHex(0xff0000); // Bright red
+            sideline.scale.set(3, 3, 3); // 3x bigger
+        });
+        
+        console.log('🎯 All sidelines made bright red and 3x bigger for visibility!');
+        console.log('💡 Usage: game.positionSidelines(topX, topY, topZ, bottomX, bottomY, bottomZ, leftX, leftY, leftZ, rightX, rightY, rightZ)');
+    }
+    
+    // Make sidelines white again
+    makeSidelinesWhite() {
+        console.log('=== MAKING SIDELINES WHITE ===');
+        
+        const sidelines = [];
+        this.scene.children.forEach((child) => {
+            if (child.name && child.name.toLowerCase().includes('sideline')) {
+                sidelines.push(child);
+            }
+        });
+        
+        sidelines.forEach(sideline => {
+            sideline.material.color.setHex(0xffffff); // White
+            sideline.scale.set(1, 1, 1); // Normal size
+            console.log(`Made ${sideline.name} white and normal size`);
+        });
+        
+        console.log('✅ All sidelines are now white and normal size!');
+    }
+    
+    // Create sidelines from four corner points
+    createSidelinesFromCorners(topLeftX, topLeftY, topLeftZ, topRightX, topRightY, topRightZ, bottomLeftX, bottomLeftY, bottomLeftZ, bottomRightX, bottomRightY, bottomRightZ) {
+        console.log('=== CREATING SIDELINES FROM FOUR CORNERS ===');
+        
+        // Remove existing sidelines and rectangle first
+        const existingSidelines = [];
+        this.scene.children.forEach((child) => {
+            if (child.name && (child.name.toLowerCase().includes('sideline') || child.name === 'fieldRectangle')) {
+                existingSidelines.push(child);
+            }
+        });
+        
+        existingSidelines.forEach(sideline => {
+            this.scene.remove(sideline);
+        });
+        
+        console.log(`Removed ${existingSidelines.length} existing sidelines/rectangle`);
+        
+        // Calculate dimensions - use average width for perfect rectangle
+        const topWidth = Math.abs(topRightX - topLeftX);
+        const bottomWidth = Math.abs(bottomRightX - bottomLeftX);
+        const fieldWidth = (topWidth + bottomWidth) / 2; // Average width for perfect rectangle
+        const fieldLength = Math.abs(bottomLeftZ - topLeftZ);
+        const centerX = (topLeftX + topRightX) / 2;
+        const centerZ = (topLeftZ + bottomLeftZ) / 2;
+        const height = topLeftY;
+        
+        console.log(`Field dimensions: ${fieldWidth} x ${fieldLength}`);
+        console.log(`Center: (${centerX}, ${height}, ${centerZ})`);
+        
+        // Calculate perfect rectangle corners
+        const rectTopLeftX = centerX - fieldWidth / 2;
+        const rectTopRightX = centerX + fieldWidth / 2;
+        const rectBottomLeftX = centerX - fieldWidth / 2;
+        const rectBottomRightX = centerX + fieldWidth / 2;
+        
+        // Create a single thin rectangular outline using lines
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xffffff, 
+            linewidth: 1
+        });
+        
+        // Create rectangle outline geometry
+        const rectanglePoints = [
+            new THREE.Vector3(rectTopLeftX, height, topLeftZ),     // Top left
+            new THREE.Vector3(rectTopRightX, height, topLeftZ),   // Top right
+            new THREE.Vector3(rectBottomRightX, height, bottomLeftZ), // Bottom right
+            new THREE.Vector3(rectBottomLeftX, height, bottomLeftZ),   // Bottom left
+            new THREE.Vector3(rectTopLeftX, height, topLeftZ)      // Back to top left to close
+        ];
+        
+        const rectangleGeometry = new THREE.BufferGeometry().setFromPoints(rectanglePoints);
+        const rectangleOutline = new THREE.Line(rectangleGeometry, lineMaterial);
+        rectangleOutline.name = 'fieldRectangle';
+        this.scene.add(rectangleOutline);
+        
+        console.log(`✅ Single thin rectangle outline created`);
+        console.log(`Rectangle corners:`);
+        console.log(`  Top Left: (${rectTopLeftX}, ${height}, ${topLeftZ})`);
+        console.log(`  Top Right: (${rectTopRightX}, ${height}, ${topLeftZ})`);
+        console.log(`  Bottom Right: (${rectBottomRightX}, ${height}, ${bottomLeftZ})`);
+        console.log(`  Bottom Left: (${rectBottomLeftX}, ${height}, ${bottomLeftZ})`);
+        
+        console.log('🎯 Sidelines created from your four corner points!');
+        console.log('💡 Usage: game.createSidelinesFromCorners(topLeftX, topLeftY, topLeftZ, topRightX, topRightY, topRightZ, bottomLeftX, bottomLeftY, bottomLeftZ, bottomRightX, bottomRightY, bottomRightZ)');
+    }
+    
+    // Enable click-to-get-coordinates mode
+    enableClickCoordinates() {
+        console.log('🎯 Click-to-get-coordinates mode enabled!');
+        console.log('Click anywhere on the field to see the exact 3D coordinates');
+        
+        // Remove existing click listener if any
+        if (this.clickCoordinatesEnabled) {
+            this.renderer.domElement.removeEventListener('click', this.clickCoordinatesHandler);
+        }
+        
+        this.clickCoordinatesEnabled = true;
+        
+        // Create raycaster for mouse picking
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        
+        // Click handler
+        this.clickCoordinatesHandler = (event) => {
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update the picking ray with the camera and mouse position
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            
+            // Find all objects that intersect with the ray
+            const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+            
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                console.log('🎯 CLICKED COORDINATES:');
+                console.log(`X: ${point.x.toFixed(2)}`);
+                console.log(`Y: ${point.y.toFixed(2)}`);
+                console.log(`Z: ${point.z.toFixed(2)}`);
+                console.log(`Full coordinates: (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`);
+                
+                // Create a temporary marker at the clicked point
+                this.createClickMarker(point);
+                
+                // Copy coordinates to clipboard (if supported)
+                const coords = `(${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`;
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(coords).then(() => {
+                        console.log('📋 Coordinates copied to clipboard!');
+                    }).catch(() => {
+                        console.log('📋 Could not copy to clipboard, but coordinates are logged above');
+                    });
+                }
+            } else {
+                console.log('❌ No object found at click position');
+            }
+        };
+        
+        // Add click listener
+        this.renderer.domElement.addEventListener('click', this.clickCoordinatesHandler);
+        
+        console.log('✅ Click listener added! Click anywhere on the field now.');
+    }
+    
+    // Disable click-to-get-coordinates mode
+    disableClickCoordinates() {
+        if (this.clickCoordinatesEnabled && this.clickCoordinatesHandler) {
+            this.renderer.domElement.removeEventListener('click', this.clickCoordinatesHandler);
+            this.clickCoordinatesEnabled = false;
+            console.log('❌ Click-to-get-coordinates mode disabled');
+        }
+    }
+    
+    // Create a temporary marker at clicked point
+    createClickMarker(point) {
+        // Remove existing markers
+        const existingMarkers = [];
+        this.scene.children.forEach((child) => {
+            if (child.name && child.name.includes('clickMarker')) {
+                existingMarkers.push(child);
+            }
+        });
+        
+        existingMarkers.forEach(marker => {
+            this.scene.remove(marker);
+        });
+        
+        // Create new marker
+        const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const markerMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xff0000, // Bright red
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.copy(point);
+        marker.position.y += 0.5; // Raise slightly above ground
+        marker.name = 'clickMarker';
+        
+        this.scene.add(marker);
+        
+        // Remove marker after 3 seconds
+        setTimeout(() => {
+            this.scene.remove(marker);
+        }, 3000);
+        
+        console.log('🔴 Red marker placed at clicked location (will disappear in 3 seconds)');
     }
     
     loadGLBModel(modelPath) {
@@ -339,13 +695,13 @@ class GLBGame {
             (gltf) => {
                 console.log('Goal post loaded successfully');
                 
-                // Position the goal post in the scene (purely visual, no collision)
+                // Position the goal post in the scene
                 const goalPost = gltf.scene;
-                goalPost.position.set(0, 0, -90); // Position at new field boundary (3x bigger)
+                goalPost.position.set(0, 0, -100); // Moved forward (closer to character)
                 goalPost.rotation.y = Math.PI; // Rotate 180 degrees to face the character
-                goalPost.scale.set(4.5, 4.5, 4.5); // Scale 4.5x bigger (3x field × 1.5x goal)
+                goalPost.scale.set(5, 5, 5); // Made a little bigger
                 
-                // Enable shadows for the goal post and ensure no collision
+                // Enable shadows for the goal post
                 goalPost.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -355,10 +711,10 @@ class GLBGame {
                     }
                 });
                 
-                // Hide the goalpost to prevent interaction
-                goalPost.visible = false;
+                // Make the goalpost visible
+                goalPost.visible = true;
                 
-                // Add to scene (but hidden)
+                // Add to scene
                 this.scene.add(goalPost);
                 
                 // Store reference for future use
@@ -381,7 +737,7 @@ class GLBGame {
     
     createGoalCollisionVisualizer() {
         // Create a red wireframe box to show the goal collision area
-        const goalCenterZ = -109; // Moved a bit closer to player (was -111)
+        const goalCenterZ = -115; // Moved further back (away from character)
         const goalWidth = 33; // Match the collision detection width (updated)
         const goalHeight = 11; // Match the collision detection height (updated)
         const goalDepth = 8; // Depth of the red box
@@ -571,7 +927,7 @@ class GLBGame {
         if (!this.ball) return;
         
         // Goal area dimensions (same as the red collision box)
-        const goalCenterZ = -109; // Moved a bit closer to player (was -111)
+        const goalCenterZ = -115; // Updated to match red collision box position
         const goalWidth = 33; // Width of the red box
         const goalHeight = 11; // Height of the red box
         const goalDepth = 8; // Depth of the red box (z = -113 to -105)
@@ -661,7 +1017,7 @@ class GLBGame {
         if (!this.ball || !this.goalPost) return false;
         
         // Goal area dimensions (same as the red collision box)
-        const goalCenterZ = -109; // Moved a bit closer to player (was -111)
+        const goalCenterZ = -115; // Updated to match red collision box position
         const goalWidth = 33; // Width of the red box
         const goalHeight = 11; // Height of the red box
         const goalDepth = 8; // Depth of the red box (z = -113 to -105)
@@ -958,6 +1314,60 @@ class GLBGame {
         this.scene.add(this.goalieCollisionBox);
         
         console.log('Goalie collision box created - Green wireframe rectangle');
+    }
+    
+    loadStadium() {
+        const loader = new GLTFLoader();
+        
+        loader.load(
+            'character/low_poly_stadium.glb',
+            (gltf) => {
+                console.log('Stadium model loaded successfully:', gltf);
+                this.stadium = gltf.scene;
+                
+                // Enable shadows for the stadium and hide incorrect penalty box
+                this.stadium.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // Improve materials for better lighting
+                        if (child.material) {
+                            child.material.shininess = 30;
+                        }
+                        
+                        // Check if this might be the field mesh and hide it if it's causing issues
+                        if (child.material && child.material.color) {
+                            const color = child.material.color.getHex();
+                            // Hide Object_4 which appears to be the field (green color #227833)
+                            if (child.name === 'Object_4' || color === 0x227833) {
+                                console.log('Hiding field mesh:', child.name, 'Color:', '#' + color.toString(16).padStart(6, '0'));
+                                child.visible = false;
+                            }
+                        }
+                    }
+                });
+                
+                // Position the stadium to contain the entire field
+                this.stadium.position.set(0, 0, 0); // Center the stadium
+                this.stadium.scale.set(10, 10, 10); // Scale much bigger to contain the field
+                
+                // No rotation needed - stadium should be properly oriented
+                
+                this.scene.add(this.stadium);
+                
+                console.log('Stadium positioned to contain the field');
+                
+                // Update stats
+                this.updateStats();
+            },
+            (progress) => {
+                console.log('Stadium loading progress:', (progress.loaded / progress.total * 100) + '%');
+            },
+            (error) => {
+                console.error('Error loading stadium model:', error);
+            }
+        );
     }
     
     loadBall() {
@@ -1736,7 +2146,7 @@ class GLBGame {
             setTimeout(() => {
                 if (this.quizActive && this.quizAnswered && !this.quizCorrect) {
                     console.log('❌ Wrong answer! Goalie will save the ball!');
-                    this.playGoalieSaveAnimation(direction);
+                this.playGoalieSaveAnimation(direction);
                 } else if (this.quizActive && this.quizAnswered && this.quizCorrect) {
                     console.log('✅ Correct answer! Goalie will move away from the ball!');
                     // Move goalie in opposite direction of ball for correct answers
@@ -2000,6 +2410,9 @@ class GLBGame {
 document.addEventListener('DOMContentLoaded', () => {
     try {
         const game = new GLBGame();
+        
+        // Load the stadium first (contains the field)
+        game.loadStadium();
         
         // Load your character GLB model with all animations
         game.loadGLBModel('character/ch_animations.glb');
