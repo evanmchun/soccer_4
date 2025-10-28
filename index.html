@@ -63,6 +63,33 @@
             max-width: 400px;
         }
         
+        #shoeIcon {
+            position: absolute;
+            top: 20px;
+            right: 100px;
+            width: 60px;
+            height: 60px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            padding: 10px;
+            backdrop-filter: blur(5px);
+        }
+        
+        #questionCounter {
+            position: absolute;
+            top: 35px;
+            right: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+        
     </style>
 </head>
 <body>
@@ -87,6 +114,14 @@
             </div>
             <button id="testSound" style="margin-top: 10px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Test Sound</button>
             <button id="loadSound" style="margin-top: 5px; padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Sound</button>
+        </div>
+        
+        <div id="shoeIcon">
+            <img src="Images/icon_shoe.svg" alt="Soccer Shoe Icon" style="width: 100%; height: 100%; object-fit: contain;">
+        </div>
+        
+        <div id="questionCounter">
+            <span id="currentQuestion">0</span>/<span id="totalQuestionsCounter">5</span>
         </div>
         
     </div>

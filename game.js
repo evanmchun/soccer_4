@@ -2323,6 +2323,16 @@ class GLBGame {
         questionNumberElement.textContent = this.currentQuestionIndex + 1;
         totalQuestionsElement.textContent = this.quizQuestions.length;
         
+        // Update the top-right counter
+        const currentQuestionCounter = document.getElementById('currentQuestion');
+        const totalQuestionsCounter = document.getElementById('totalQuestionsCounter');
+        if (currentQuestionCounter) {
+            currentQuestionCounter.textContent = this.currentQuestionIndex + 1;
+        }
+        if (totalQuestionsCounter) {
+            totalQuestionsCounter.textContent = this.quizQuestions.length;
+        }
+        
         startQuizButton.style.display = 'none';
     }
     
