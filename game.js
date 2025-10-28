@@ -92,6 +92,9 @@ class GLBGame {
         // Stadium will provide the field, no need to create separate field
         this.createTurfField();
         
+        // Add short grass on top of the field
+        this.createGrass();
+        
         // Automatically create sidelines from your corner coordinates
         setTimeout(() => {
             this.createSidelinesFromCorners(-80.20, 0.01, -120.65, 80.20, 0.01, -120.65, -80.20, 0.01, 120.65, 68.56, 0.01, 120.65);
@@ -142,15 +145,6 @@ class GLBGame {
         
         // Set the target to the goal post location so zoom focuses on the goal
         this.controls.target.set(0, 0,-90);
-        
-        // Add event listener to log camera angles when moved
-        this.controls.addEventListener('change', () => {
-            const polarAngle = this.controls.getPolarAngle();
-            const azimuthalAngle = this.controls.getAzimuthalAngle();
-            const distance = this.controls.getDistance();
-            
-            console.log(`Camera Angles - Polar: ${polarAngle.toFixed(3)} rad (${(polarAngle * 180 / Math.PI).toFixed(1)}°), Azimuthal: ${azimuthalAngle.toFixed(3)} rad (${(azimuthalAngle * 180 / Math.PI).toFixed(1)}°), Distance: ${distance.toFixed(1)}`);
-        });
     }
     
     createLights() {
@@ -310,6 +304,109 @@ class GLBGame {
         this.scene.add(goalArea2);
         
         console.log('Field markings with sideline added!');
+    }
+    
+    createGrass() {
+        console.log('Creating shader-based swaying grass for soccer field...');
+        
+        // Shader material for realistic grass animation
+        const vertexShader = `
+            varying vec2 vUv;
+            uniform float time;
+            
+            void main() {
+                vUv = uv;
+                
+                // VERTEX POSITION
+                vec4 mvPosition = vec4( position, 1.0 );
+                #ifdef USE_INSTANCING
+                    mvPosition = instanceMatrix * mvPosition;
+                #endif
+                
+                // DISPLACEMENT - Wind effect
+                // Stronger displacement on blade tips
+                float dispPower = 1.0 - cos( uv.y * 3.1416 / 2.0 );
+                
+                // Wind displacement based on position and time
+                float displacement = sin( mvPosition.z + time * 3.0 ) * ( 0.05 * dispPower );
+                mvPosition.z += displacement;
+                
+                vec4 modelViewPosition = modelViewMatrix * mvPosition;
+                gl_Position = projectionMatrix * modelViewPosition;
+            }
+        `;
+
+        const fragmentShader = `
+            varying vec2 vUv;
+            
+            void main() {
+                vec3 baseColor = vec3( 0.2, 0.8, 0.2 ); // Soccer field green
+                float clarity = ( vUv.y * 0.3 ) + 0.7; // Gradient from dark to light
+                gl_FragColor = vec4( baseColor * clarity, 0.9 );
+            }
+        `;
+
+        // Create uniforms for shader
+        this.grassUniforms = {
+            time: { value: 0 }
+        };
+
+        // Create shader material
+        const grassMaterial = new THREE.ShaderMaterial({
+            vertexShader,
+            fragmentShader,
+            uniforms: this.grassUniforms,
+            side: THREE.DoubleSide,
+            transparent: true
+        });
+
+        // Create grass blade geometry (short for soccer field)
+        const grassBladeGeometry = new THREE.PlaneGeometry(0.05, 0.2, 1, 4);
+        grassBladeGeometry.translate(0, 0.1, 0); // Move lowest point to 0
+
+        // Create instanced mesh
+        const grassCount = 50000; // Massive amount of grass blades
+        const grassMesh = new THREE.InstancedMesh(grassBladeGeometry, grassMaterial, grassCount);
+        
+        // Store grass mesh for animation
+        this.grassMesh = grassMesh;
+        this.grassCount = grassCount;
+
+        // Position grass blades across the field
+        const dummy = new THREE.Object3D();
+        const fieldWidth = 160; // Match your field width
+        const fieldLength = 240; // Match your field length
+
+        for (let i = 0; i < grassCount; i++) {
+            // Random position within field bounds
+            dummy.position.set(
+                (Math.random() - 0.5) * fieldWidth,
+                0.05, // Slightly above field
+                (Math.random() - 0.5) * fieldLength
+            );
+            
+            // Random scale for variation
+            dummy.scale.setScalar(0.5 + Math.random() * 0.5);
+            
+            // Random rotation
+            dummy.rotation.y = Math.random() * Math.PI;
+            
+            dummy.updateMatrix();
+            grassMesh.setMatrixAt(i, dummy.matrix);
+        }
+
+        // Add to scene
+        this.scene.add(grassMesh);
+        
+        console.log('Shader-based swaying soccer field grass created with', grassCount, 'blades');
+    }
+    
+    // Animate grass swaying using shader uniforms
+    animateGrass() {
+        if (!this.grassUniforms) return;
+        
+        // Update time uniform for shader animation
+        this.grassUniforms.time.value = this.clock.getElapsedTime();
     }
     
     // Debug function to check sidelines - call from browser console
@@ -768,13 +865,16 @@ class GLBGame {
         const collisionBox = new THREE.Mesh(boxGeometry, boxMaterial);
         collisionBox.position.set(0, goalHeight / 2, goalCenterZ); // Center the box
         
+        // Hide the collision box (make it invisible)
+        collisionBox.visible = false;
+        
         // Add to scene
         this.scene.add(collisionBox);
         
         // Store reference for potential removal later
         this.goalCollisionVisualizer = collisionBox;
         
-        console.log('Goal collision visualizer added - Red wireframe box');
+        console.log('Goal collision visualizer added - Hidden red wireframe box');
         console.log('Collision bounds - X: ±16.5, Y: 0-11, Z: -104 to -96');
     }
     
@@ -1325,9 +1425,12 @@ class GLBGame {
         // Make it slightly above ground level
         this.goalieCollisionBox.position.y += 3;
         
+        // Hide the goalie collision box (make it invisible)
+        this.goalieCollisionBox.visible = false;
+        
         this.scene.add(this.goalieCollisionBox);
         
-        console.log('Goalie collision box created - Green wireframe rectangle');
+        console.log('Goalie collision box created - Hidden green wireframe rectangle');
     }
     
     loadStadium() {
@@ -2273,6 +2376,9 @@ class GLBGame {
         if (this.goalieMixer) {
             this.goalieMixer.update(deltaTime);
         }
+        
+        // Animate grass swaying
+        this.animateGrass();
         
         // Update controls
         this.controls.update();
