@@ -16,7 +16,7 @@ class GLBGame {
         
         // Ball collision constants
         this.BALL_RADIUS = 0.9;           // Ball radius (0.9 as requested)
-        this.showCollisionSphere = true;  // Show collision sphere for debugging
+        this.showCollisionSphere = false;  // Show collision sphere for debugging (hidden by default)
         
         this.scene = null;
         this.camera = null;
@@ -1571,8 +1571,14 @@ class GLBGame {
             this.ball.position.add(this.ballVelocity);
             
         // Check if ball hit the ground (sphere-based collision)
-                if (this.ball.position.y - this.BALL_RADIUS <= this.GROUND_LEVEL) {
-                    this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS; // Position ball so its bottom touches ground
+                // Use bounding box center to get actual ball center position
+                const box = new THREE.Box3().setFromObject(this.ball);
+                const ballCenterY = box.getCenter(new THREE.Vector3()).y;
+                
+                if (ballCenterY - this.BALL_RADIUS <= this.GROUND_LEVEL) {
+                    // Adjust ball position so the actual center is at the right height
+                    const offsetY = ballCenterY - this.ball.position.y; // Offset between model position and actual center
+                    this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS - offsetY; // Position ball so its bottom touches ground
             this.ballVelocity.y = 0; // Stop falling
             this.ballLanded = true;
                 }
@@ -1614,8 +1620,14 @@ class GLBGame {
         // }
         
         // Check if ball hit the ground (sphere-based collision)
-        if (this.ball.position.y - this.BALL_RADIUS <= this.GROUND_LEVEL) {
-            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS; // Position ball so its bottom touches ground
+        // Use bounding box center to get actual ball center position
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const ballCenterY = box.getCenter(new THREE.Vector3()).y;
+        
+        if (ballCenterY - this.BALL_RADIUS <= this.GROUND_LEVEL) {
+            // Adjust ball position so the actual center is at the right height
+            const offsetY = ballCenterY - this.ball.position.y; // Offset between model position and actual center
+            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS - offsetY; // Position ball so its bottom touches ground
             this.ballVelocity.y *= -0.6; // Bounce with reduced energy
             this.ballVelocity.x *= 0.8;  // Reduce horizontal speed on bounce
             this.ballVelocity.z *= 0.8;
@@ -1792,11 +1804,19 @@ class GLBGame {
         }
         
         // CRITICAL: Keep ball sphere within Y boundaries - ball CANNOT escape
-        if (this.ball.position.y - this.BALL_RADIUS < minY) {
-            this.ball.position.y = minY + this.BALL_RADIUS; // Position ball so its bottom touches boundary
+        // Use bounding box center to get actual ball center position
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const ballCenterY = box.getCenter(new THREE.Vector3()).y;
+        
+        if (ballCenterY - this.BALL_RADIUS < minY) {
+            // Adjust ball position so the actual center is at the right height
+            const offsetY = ballCenterY - this.ball.position.y; // Offset between model position and actual center
+            this.ball.position.y = minY + this.BALL_RADIUS - offsetY; // Position ball so its bottom touches boundary
             this.ballVelocity.y = 0;
-        } else if (this.ball.position.y + this.BALL_RADIUS > maxY) {
-            this.ball.position.y = maxY - this.BALL_RADIUS; // Position ball so its top touches boundary
+        } else if (ballCenterY + this.BALL_RADIUS > maxY) {
+            // Adjust ball position so the actual center is at the right height
+            const offsetY = ballCenterY - this.ball.position.y; // Offset between model position and actual center
+            this.ball.position.y = maxY - this.BALL_RADIUS - offsetY; // Position ball so its top touches boundary
             this.ballVelocity.y = 0;
         }
         
@@ -1822,7 +1842,11 @@ class GLBGame {
             this.ballVelocity.set(0, 0, 0);
             
             // Position ball on the ground in the goal area
-            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS;
+            // Use bounding box center to get actual ball center position, then adjust
+            const box = new THREE.Box3().setFromObject(this.ball);
+            const ballCenterY = box.getCenter(new THREE.Vector3()).y;
+            const offsetY = ballCenterY - this.ball.position.y; // Offset between model position and actual center
+            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS - offsetY; // Position ball so its bottom touches ground
             
             console.log('Goal scored! Ball will stay in goal area until R is pressed');
             console.log('goalScored flag set to:', this.goalScored);
@@ -1898,9 +1922,49 @@ class GLBGame {
         
         console.log('=== RESET BALL ===');
         console.log('Quiz active:', this.quizActive);
-        console.log('Setting ball position to:', -3.9, this.BALL_RADIUS - 0.6, -56.25);
         
-        this.ball.position.set(-3.9, this.BALL_RADIUS - 0.6, -56.25); // Position ball (lowered more to align with collision sphere)
+        // Set initial ball position
+        const targetX = -3.9;
+        const targetZ = -56.25;
+        const targetModelY = this.BALL_RADIUS - 0.6; // Initial Y position
+        
+        this.ball.position.set(targetX, targetModelY, targetZ);
+        
+        // Update collision sphere to get accurate center position
+        if (!this.ballCollisionSphere && this.showCollisionSphere) {
+            this.createBallCollisionSphere();
+        } else {
+            this.updateBallCollisionSphere();
+        }
+        
+        // Calculate actual ball center using bounding box
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const ballCenter = box.getCenter(new THREE.Vector3());
+        const offsetY = ballCenter.y - this.ball.position.y;
+        
+        console.log('Ball model position:', this.ball.position);
+        console.log('Ball bounding box center:', ballCenter);
+        console.log('Y offset between model and center:', offsetY.toFixed(3));
+        console.log('Ball center Y before adjustment:', ballCenter.y.toFixed(3));
+        
+        // Check if ball center would be below ground and adjust if needed
+        const minBallCenterY = this.GROUND_LEVEL + this.BALL_RADIUS; // Ball center must be at least BALL_RADIUS above ground
+        if (ballCenter.y < minBallCenterY) {
+            const adjustment = minBallCenterY - ballCenter.y;
+            this.ball.position.y += adjustment;
+            console.log('ADJUSTED ball position upward by:', adjustment.toFixed(3));
+            console.log('New ball model position Y:', this.ball.position.y.toFixed(3));
+            
+            // Recalculate to verify
+            const boxAfter = new THREE.Box3().setFromObject(this.ball);
+            const ballCenterAfter = boxAfter.getCenter(new THREE.Vector3());
+            console.log('Ball center Y after adjustment:', ballCenterAfter.y.toFixed(3));
+            console.log('Expected center Y:', minBallCenterY.toFixed(3));
+            
+            // Update collision sphere again with corrected position
+            this.updateBallCollisionSphere();
+        }
+        
         this.ballVelocity.set(0, 0, 0);
         this.ballKicked = false;
         this.ballStopTimer = 0;
@@ -2125,22 +2189,35 @@ class GLBGame {
         });
         
         this.ballCollisionSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        // Position collision sphere to match ball's center exactly
-        this.ballCollisionSphere.position.copy(this.ball.position);
+        
+        // Calculate ball's bounding box to get the actual center
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // Position collision sphere at the ball's actual geometric center
+        this.ballCollisionSphere.position.copy(center);
+        
+        // Set visibility based on showCollisionSphere flag
+        this.ballCollisionSphere.visible = this.showCollisionSphere;
         
         // Add to scene
         this.scene.add(this.ballCollisionSphere);
         
         console.log('Ball collision sphere created with radius:', this.BALL_RADIUS);
         console.log('Ball position:', this.ball.position);
+        console.log('Ball bounding box center:', center);
         console.log('Collision sphere position:', this.ballCollisionSphere.position);
     }
     
     updateBallCollisionSphere() {
         if (!this.ballCollisionSphere || !this.ball) return;
         
-        // Update collision sphere position to match ball
-        this.ballCollisionSphere.position.copy(this.ball.position);
+        // Calculate ball's bounding box to get the actual center
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // Update collision sphere position to match ball's actual geometric center
+        this.ballCollisionSphere.position.copy(center);
     }
     
     toggleCollisionSphere() {
@@ -3051,25 +3128,36 @@ class GLBGame {
             }
             
             // Check if ball is in its initial reset position before allowing kick
-            const initialPosition = new THREE.Vector3(-3.9, this.BALL_RADIUS - 0.6, -56.25); // Use lowered ball position
-            const currentPos = this.ball.position;
+            // Use model position for X/Z (should match expected), and check ball center Y (accounts for geometry offset)
+            const box = new THREE.Box3().setFromObject(this.ball);
+            const ballCenter = box.getCenter(new THREE.Vector3());
             
-            // Check each axis separately with appropriate tolerance
-            const xDiff = Math.abs(currentPos.x - initialPosition.x);
-            const yDiff = Math.abs(currentPos.y - initialPosition.y);
-            const zDiff = Math.abs(currentPos.z - initialPosition.z);
+            // Expected model position (what we set in resetBall)
+            const expectedModelX = -3.9;
+            const expectedModelZ = -56.25;
             
-            const tolerance = 0.5; // Reduced tolerance for more precise checking
+            // Check model position X and Z (these should match exactly after reset)
+            const xDiff = Math.abs(this.ball.position.x - expectedModelX);
+            const zDiff = Math.abs(this.ball.position.z - expectedModelZ);
+            
+            // For Y, check if ball center is at least BALL_RADIUS above ground (accounts for any Y adjustment)
+            const minBallCenterY = this.GROUND_LEVEL + this.BALL_RADIUS;
+            const yDiff = ballCenter.y < minBallCenterY ? (minBallCenterY - ballCenter.y) : 0;
+            
+            const tolerance = 0.5; // Tolerance for position checking
             
             console.log('=== KICK POSITION CHECK ===');
-            console.log('Current ball position:', currentPos);
-            console.log('Expected position:', initialPosition);
-            console.log('Differences - X:', xDiff.toFixed(2), 'Y:', yDiff.toFixed(2), 'Z:', zDiff.toFixed(2));
+            console.log('Current ball model position:', this.ball.position);
+            console.log('Current ball center position:', ballCenter);
+            console.log('Expected model position (X, Z):', expectedModelX, expectedModelZ);
+            console.log('Min ball center Y:', minBallCenterY.toFixed(2));
+            console.log('Differences - X:', xDiff.toFixed(2), 'Y center below min:', yDiff.toFixed(2), 'Z:', zDiff.toFixed(2));
             console.log('Tolerance:', tolerance);
             
             if (xDiff > tolerance || yDiff > tolerance || zDiff > tolerance) {
                 console.log('❌ KICK BLOCKED: Ball is not in reset position!');
-                console.log('Ball must be within', tolerance, 'units of reset position to kick');
+                console.log('Ball must be within', tolerance, 'units of expected reset position to kick');
+                console.log('HINT: Check if ball was properly reset. X diff:', xDiff.toFixed(2), 'Y diff:', yDiff.toFixed(2), 'Z diff:', zDiff.toFixed(2));
                 return; // Don't play kick animation if ball is not reset
             }
             
