@@ -71,6 +71,15 @@ class GLBGame {
         this.quizAnswered = false;
         this.quizCorrect = false;
         
+        // Background music properties
+        this.bgMusic = null;
+        this.bgMusicLoaded = false;
+        this.bgMusicPlaying = false;
+        
+        // Crowd cheering properties
+        this.crowdCheering = null;
+        this.crowdCheeringLoaded = false;
+        
         this.init();
     }
     
@@ -928,7 +937,7 @@ class GLBGame {
         console.log('Using stored direction:', direction.x.toFixed(2), direction.y.toFixed(2), direction.z.toFixed(2));
         
         // Set velocity with reduced power for slower ball speed
-        const kickPower = 1.5; // Reduced ball speed
+        const kickPower = 2.7; // Reduced ball speed
         this.ballVelocity.set(
             direction.x * kickPower,
             direction.y * kickPower + 0.1, // Lower trajectory
@@ -960,18 +969,21 @@ class GLBGame {
         
         // Handle goal celebration
         if (this.goalScored) {
-            // Apply gravity to make ball fall
-            this.ballVelocity.y += this.ballGravity;
-            
-            // Update ball position
-            this.ball.position.add(this.ballVelocity);
-            
-        // Check if ball hit the ground
-        if (this.ball.position.y <= 0.5) {
-            this.ball.position.y = 0.5;
-            this.ballVelocity.y = 0; // Stop falling
-            this.ballLanded = true;
-        }
+            // Only apply gravity if ball hasn't landed yet
+            if (!this.ballLanded) {
+                // Apply gravity to make ball fall
+                this.ballVelocity.y += this.ballGravity;
+                
+                // Update ball position
+                this.ball.position.add(this.ballVelocity);
+                
+                // Check if ball hit the ground
+                if (this.ball.position.y <= 0.9) {
+                    this.ball.position.y = 0.9; // Slightly higher position
+                    this.ballVelocity.y = 0; // Stop falling
+                    this.ballLanded = true;
+                }
+            }
             
             // Ball stays in goal area permanently until R key is pressed
             // No automatic reset - ball will stay there until manual reset
@@ -1006,8 +1018,8 @@ class GLBGame {
         // }
         
         // Check if ball hit the ground
-        if (this.ball.position.y <= 0.5) {
-            this.ball.position.y = 0.5;
+        if (this.ball.position.y <= 0.9) {
+            this.ball.position.y = 0.9; // Slightly higher position
             this.ballVelocity.y *= -0.6; // Bounce with reduced energy
             this.ballVelocity.x *= 0.8;  // Reduce horizontal speed on bounce
             this.ballVelocity.z *= 0.8;
@@ -1207,11 +1219,14 @@ class GLBGame {
             // Set goal scored flag
             this.goalScored = true;
             
+            // Play crowd cheering sound for goal
+            this.playCrowdCheering();
+            
             // Stop the ball completely
             this.ballVelocity.set(0, 0, 0);
             
             // Position ball on the ground in the goal area
-            this.ball.position.y = 0.5;
+            this.ball.position.y = 0.9;
             
             console.log('Goal scored! Ball will stay in goal area until R is pressed');
             console.log('goalScored flag set to:', this.goalScored);
@@ -1286,8 +1301,10 @@ class GLBGame {
         if (!this.ball) return;
         
         console.log('=== RESET BALL ===');
+        console.log('Quiz active:', this.quizActive);
+        console.log('Setting ball position to:', -3.9, 0.9, -56.25);
         
-        this.ball.position.set(-3.9, 0.5, -56.25); // Start on the ground (y = 0.5)
+        this.ball.position.set(-3.9, 0.9, -56.25); // Match landing position
         this.ballVelocity.set(0, 0, 0);
         this.ballKicked = false;
         this.ballStopTimer = 0;
@@ -1488,31 +1505,59 @@ class GLBGame {
     }
     
     loadBall() {
-        console.log('Creating sphere ball for testing');
+        console.log('Loading ball.glb model...');
         
-        // Create a simple sphere for testing
-        const ballGeometry = new THREE.SphereGeometry(1, 16, 16);
-        const ballMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0xffffff, // White color
-            transparent: true,
-            opacity: 0.9
-        });
+        const loader = new GLTFLoader();
         
-        const ball = new THREE.Mesh(ballGeometry, ballMaterial);
-        ball.position.set(-3.9, 0.5, -56.25); // Position in front of the character, on the ground (y = 0.5)
-        ball.scale.set(1, 1, 1); // Half the previous size
+        loader.load(
+            'character/ball.glb',
+            (gltf) => {
+                console.log('Ball model loaded successfully');
                 
-                // Enable shadows for the ball
-        ball.castShadow = true;
-        ball.receiveShadow = true;
+                // Use the loaded model as the ball
+                this.ball = gltf.scene;
+                
+                // Position the ball
+                this.ball.position.set(-3.9, 0.9, -56.25);
+                
+                // Scale the ball appropriately - make it much bigger
+                this.ball.scale.set(7, 7, 7);
+                
+                // Enable shadows
+                this.ball.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
                 
                 // Add to scene
-                this.scene.add(ball);
+                this.scene.add(this.ball);
                 
-                // Store reference for future use
-                this.ball = ball;
+                console.log('Ball.glb model added to scene');
+            },
+            (progress) => {
+                console.log('Ball loading progress:', (progress.loaded / progress.total * 100) + '%');
+            },
+            (error) => {
+                console.error('Error loading ball model:', error);
                 
-        console.log('Sphere ball added to scene');
+                // Fallback: create a simple sphere if GLB fails
+                console.log('Creating fallback sphere ball...');
+                const ballGeometry = new THREE.SphereGeometry(1, 16, 16);
+                const ballMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                this.ball = new THREE.Mesh(ballGeometry, ballMaterial);
+                this.ball.position.set(-3.9, 0.9, -56.25);
+                this.ball.castShadow = true;
+                this.ball.receiveShadow = true;
+                this.scene.add(this.ball);
+                console.log('Fallback sphere ball created');
+            }
+        );
     }
     
     setupGoalieAnimations(gltf) {
@@ -1869,6 +1914,95 @@ class GLBGame {
         });
         
         console.log('=== KICK SOUND LOADING INITIATED ===');
+    }
+    
+    loadBackgroundMusic() {
+        console.log('=== LOADING BACKGROUND MUSIC ===');
+        console.log('Attempting to load: sounds/bg_music.mp3');
+        
+        // Create HTML5 audio for background music
+        this.bgMusic = new Audio('sounds/bg_music.mp3');
+        this.bgMusic.volume = 0.3; // Lower volume for background music
+        this.bgMusic.loop = true; // Loop the background music
+        this.bgMusic.preload = 'auto';
+        
+        console.log('Background music object created:', this.bgMusic);
+        console.log('Audio src:', this.bgMusic.src);
+        
+        // Test if background music loads
+        this.bgMusic.addEventListener('canplaythrough', () => {
+            console.log('✅ Background music loaded successfully');
+            console.log('Music duration:', this.bgMusic.duration);
+            this.bgMusicLoaded = true;
+        });
+        
+        this.bgMusic.addEventListener('error', (e) => {
+            console.error('❌ Error loading background music:', e);
+            console.error('Error details:', e.target.error);
+        });
+        
+        console.log('=== BACKGROUND MUSIC LOADING INITIATED ===');
+    }
+    
+    playBackgroundMusic() {
+        if (!this.bgMusic || !this.bgMusicLoaded || this.bgMusicPlaying) return;
+        
+        console.log('🎵 Starting background music...');
+        this.bgMusic.play().then(() => {
+            this.bgMusicPlaying = true;
+            console.log('✅ Background music started successfully');
+        }).catch((error) => {
+            console.error('❌ Error playing background music:', error);
+        });
+    }
+    
+    stopBackgroundMusic() {
+        if (!this.bgMusic || !this.bgMusicPlaying) return;
+        
+        console.log('🔇 Stopping background music...');
+        this.bgMusic.pause();
+        this.bgMusic.currentTime = 0;
+        this.bgMusicPlaying = false;
+        console.log('✅ Background music stopped');
+    }
+    
+    loadCrowdCheering() {
+        console.log('=== LOADING CROWD CHEERING ===');
+        console.log('Attempting to load: sounds/crowd-cheering.mp3');
+        
+        // Create HTML5 audio for crowd cheering
+        this.crowdCheering = new Audio('sounds/crowd-cheering.mp3');
+        this.crowdCheering.volume = 0.7; // Higher volume for celebration
+        this.crowdCheering.preload = 'auto';
+        
+        console.log('Crowd cheering object created:', this.crowdCheering);
+        console.log('Audio src:', this.crowdCheering.src);
+        
+        // Test if crowd cheering loads
+        this.crowdCheering.addEventListener('canplaythrough', () => {
+            console.log('✅ Crowd cheering loaded successfully');
+            console.log('Cheering duration:', this.crowdCheering.duration);
+            this.crowdCheeringLoaded = true;
+        });
+        
+        this.crowdCheering.addEventListener('error', (e) => {
+            console.error('❌ Error loading crowd cheering:', e);
+            console.error('Error details:', e.target.error);
+        });
+        
+        console.log('=== CROWD CHEERING LOADING INITIATED ===');
+    }
+    
+    playCrowdCheering() {
+        if (!this.crowdCheering || !this.crowdCheeringLoaded) return;
+        
+        console.log('🎉 Playing crowd cheering for goal!');
+        this.crowdCheering.currentTime = 0; // Reset to beginning
+        this.crowdCheering.play().then(() => {
+            console.log('✅ Crowd cheering played successfully');
+        }).catch((error) => {
+            console.error('❌ Error playing crowd cheering:', error);
+        });
     }
     
     setupAnimations(gltf) {
@@ -2380,6 +2514,19 @@ class GLBGame {
         // Animate grass swaying
         this.animateGrass();
         
+        // Add ball spinning animation when kicked
+        if (this.ball && this.ballKicked && !this.goalScored) {
+            // Calculate spin based on velocity direction
+            const spinSpeed = this.ballVelocity.length() * 0.3;
+            
+            // Rotate around X and Z axes based on movement direction
+            this.ball.rotation.x += this.ballVelocity.z * spinSpeed * 0.03;
+            this.ball.rotation.z -= this.ballVelocity.x * spinSpeed * 0.03;
+            
+            // Add some Y-axis rotation for realistic spinning
+            this.ball.rotation.y += spinSpeed * 0.05;
+        }
+        
         // Update controls
         this.controls.update();
         
@@ -2494,6 +2641,11 @@ class GLBGame {
     nextQuestion() {
         this.currentQuestionIndex++;
         
+        console.log('=== NEXT QUESTION ===');
+        console.log('Current question index:', this.currentQuestionIndex);
+        console.log('Quiz active:', this.quizActive);
+        console.log('Ball position before next question:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
+        
         if (this.currentQuestionIndex >= this.quizQuestions.length) {
             this.endQuiz();
         } else {
@@ -2505,6 +2657,10 @@ class GLBGame {
     }
     
     endQuiz() {
+        console.log('=== END QUIZ ===');
+        console.log('Quiz active before end:', this.quizActive);
+        console.log('Ball position before end quiz:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
+        
         this.quizActive = false;
         const questionText = document.getElementById('questionText');
         const answerButtons = document.getElementById('answerButtons');
@@ -2516,19 +2672,24 @@ class GLBGame {
         startQuizButton.style.display = 'block';
         
         console.log('Quiz ended! Final score:', this.quizScore);
+        console.log('Ball position after end quiz:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
     }
     
     triggerKickSequence() {
         console.log('🎯 Starting kick sequence...');
         console.log('Quiz state at kick start - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+        console.log('Ball position at kick start:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
         
         // Reset ball to starting position first
         this.resetBall();
+        
+        console.log('Ball position after reset:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
         
         // Wait a moment for ball to reset, then start kick animation
         setTimeout(() => {
             console.log('🎯 Starting kick animation...');
             console.log('Quiz state before kick animation - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
+            console.log('Ball position before kick animation:', this.ball ? this.ball.position.y.toFixed(2) : 'No ball');
             this.playKickAnimation();
         }, 500);
     }
@@ -2559,34 +2720,33 @@ document.addEventListener('DOMContentLoaded', () => {
         game.loadKickSound();
         console.log('loadKickSound() called');
         
+        // Load the background music
+        console.log('About to call loadBackgroundMusic()...');
+        game.loadBackgroundMusic();
+        console.log('loadBackgroundMusic() called');
+        
+        // Load the crowd cheering sound
+        console.log('About to call loadCrowdCheering()...');
+        game.loadCrowdCheering();
+        console.log('loadCrowdCheering() called');
+        
         // Make game globally accessible for debugging
         window.game = game;
         
-        // Add test sound button functionality
-        const testSoundButton = document.getElementById('testSound');
-        if (testSoundButton) {
-            testSoundButton.addEventListener('click', () => {
-                console.log('Test sound button clicked');
-                if (game.html5KickSound) {
-                    console.log('Playing test sound with HTML5 audio');
-                    game.html5KickSound.currentTime = 0;
-                    game.html5KickSound.play().then(() => {
-                        console.log('Test sound played successfully');
-                    }).catch(error => {
-                        console.error('Test sound failed:', error);
-                    });
-                } else {
-                    console.log('HTML5 audio not loaded yet');
-                }
+        // Add music controls
+        const playMusicButton = document.getElementById('playMusic');
+        if (playMusicButton) {
+            playMusicButton.addEventListener('click', () => {
+                console.log('Play music button clicked');
+                game.playBackgroundMusic();
             });
         }
         
-        // Add load sound button functionality
-        const loadSoundButton = document.getElementById('loadSound');
-        if (loadSoundButton) {
-            loadSoundButton.addEventListener('click', () => {
-                console.log('Load sound button clicked');
-                game.loadKickSound();
+        const stopMusicButton = document.getElementById('stopMusic');
+        if (stopMusicButton) {
+            stopMusicButton.addEventListener('click', () => {
+                console.log('Stop music button clicked');
+                game.stopBackgroundMusic();
             });
         }
         
