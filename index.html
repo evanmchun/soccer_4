@@ -57,12 +57,38 @@
             color: white;
             z-index: 100;
             background: rgba(0, 0, 0, 0.5);
-            padding: 25px;
+            padding: 15px;
             border-radius: 10px;
             backdrop-filter: blur(10px);
-            width: 500px;
-            height: 400px;
+            max-width: 380px;
+            width: calc(30vw + 150px);
+            max-height: 70vh;
             overflow-y: auto;
+        }
+        
+        /* Make UI even more compact when embedded in iframe */
+        .embedded #ui {
+            max-width: 300px;
+            width: calc(35vw + 100px);
+            max-height: 60vh;
+            padding: 12px;
+            right: 10px;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            #ui {
+                max-width: 320px;
+                padding: 12px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #ui {
+                max-width: 280px;
+                padding: 10px;
+                right: 10px;
+            }
         }
         
         #shoeIcon {
@@ -131,7 +157,14 @@
             background: rgba(156, 39, 176, 0.5);
         }
         
+        /* Detect if in iframe and apply embedded class */
     </style>
+    <script>
+        // Check if running in iframe
+        if (window.self !== window.top) {
+            document.body.classList.add('embedded');
+        }
+    </script>
 </head>
 <body>
     <div id="gameContainer">
@@ -142,13 +175,13 @@
         </div>
         
         <div id="ui">
-            <h3>⚽ Soccer Quiz Game</h3>
-            <div id="quizContainer" style="margin-top: 15px;">
-                <div id="questionDisplay" style="background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <h4 id="questionText">Click "Start Quiz" to begin!</h4>
-                    <div id="answerButtons" style="margin-top: 10px;"></div>
+            <h3 style="margin: 0 0 10px 0; font-size: 16px;">⚽ Soccer Quiz Game</h3>
+            <div id="quizContainer" style="margin-top: 10px;">
+                <div id="questionDisplay" style="background: rgba(0,0,0,0.7); padding: 8px; border-radius: 5px; margin-bottom: 8px;">
+                    <h4 id="questionText" style="margin: 0 0 8px 0; font-size: 14px; line-height: 1.4;">Click "Start Quiz" to begin!</h4>
+                    <div id="answerButtons" style="margin-top: 8px;"></div>
                 </div>
-                <button id="startQuiz" style="padding: 8px 16px; background: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;">Start Quiz</button>
+                <button id="startQuiz" style="padding: 6px 12px; background: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px;">Start Quiz</button>
             </div>
         </div>
         

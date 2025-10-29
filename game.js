@@ -3605,7 +3605,8 @@ class GLBGame {
         }
         
         const currentQuestion = this.quizQuestions[this.currentQuestionIndex];
-        questionText.textContent = `${currentQuestion.question}\n\nClick an answer to kick the ball!`;
+        questionText.textContent = `${currentQuestion.question}`;
+        questionText.style.fontSize = window.self !== window.top ? '13px' : '14px'; // Smaller in iframe
         
         // Clear previous buttons
         answerButtons.innerHTML = '';
@@ -3614,7 +3615,7 @@ class GLBGame {
         currentQuestion.answers.forEach((answer, index) => {
             const button = document.createElement('button');
             button.textContent = answer;
-            button.style.cssText = 'display: block; width: 100%; margin: 5px 0; padding: 8px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer;';
+            button.style.cssText = 'display: block; width: 100%; margin: 4px 0; padding: 6px 10px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;';
             button.addEventListener('click', () => this.answerQuestion(index));
             answerButtons.appendChild(button);
         });
