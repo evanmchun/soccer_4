@@ -84,6 +84,7 @@ class GLBGame {
         ];
         this.quizAnswered = false;
         this.quizCorrect = false;
+        this.selectedAnswerIndex = null;
         
         // Background music properties
         this.bgMusic = null;
@@ -1494,10 +1495,33 @@ class GLBGame {
         console.log('Collision bounds - X: ±16.5, Y: 0-11, Z: -104 to -96');
     }
     
+    updateAnswerButtonColors() {
+        // Update button colors when ball is kicked (reveal correct/wrong answers)
+        if (!this.quizActive || !this.quizAnswered || this.selectedAnswerIndex === null) return;
+        
+        const currentQuestion = this.quizQuestions[this.currentQuestionIndex];
+        if (!currentQuestion) return;
+        
+        const buttons = document.querySelectorAll('#answerButtons button');
+        buttons.forEach((button, index) => {
+            if (index === currentQuestion.correct) {
+                button.style.background = '#4CAF50'; // Green for correct
+            } else if (index === this.selectedAnswerIndex && !this.quizCorrect) {
+                button.style.background = '#F44336'; // Red for wrong selected answer
+            } else if (index === this.selectedAnswerIndex && this.quizCorrect) {
+                // If the selected answer is correct, it's already highlighted, ensure it's green
+                button.style.background = '#4CAF50'; // Green for correct
+            }
+        });
+    }
+    
     kickBall() {
         if (!this.ball) return;
         
         console.log('Kicking ball!');
+        
+        // Update answer button colors when ball is kicked
+        this.updateAnswerButtonColors();
         
         // Initialize audio context on first user interaction
         if (!this.audioContextInitialized) {
@@ -1991,6 +2015,7 @@ class GLBGame {
         if (!this.quizActive) {
             this.quizAnswered = false;
             this.quizCorrect = false;
+            this.selectedAnswerIndex = null;
         }
         
         // Reset goalie collision box to default position
@@ -2753,6 +2778,7 @@ class GLBGame {
         console.log('🎵 Starting background music...');
         this.bgMusic.play().then(() => {
             this.bgMusicPlaying = true;
+            this.updateMusicButton();
             console.log('✅ Background music started successfully');
         }).catch((error) => {
             console.error('❌ Error playing background music:', error);
@@ -2766,7 +2792,29 @@ class GLBGame {
         this.bgMusic.pause();
         this.bgMusic.currentTime = 0;
         this.bgMusicPlaying = false;
+        this.updateMusicButton();
         console.log('✅ Background music stopped');
+    }
+    
+    toggleBackgroundMusic() {
+        if (this.bgMusicPlaying) {
+            this.stopBackgroundMusic();
+        } else {
+            this.playBackgroundMusic();
+        }
+    }
+    
+    updateMusicButton() {
+        const musicButton = document.getElementById('musicToggle');
+        if (musicButton) {
+            if (this.bgMusicPlaying) {
+                musicButton.textContent = '🔇 Stop Music';
+                musicButton.classList.add('playing');
+            } else {
+                musicButton.textContent = '🎵 Play Music';
+                musicButton.classList.remove('playing');
+            }
+        }
     }
     
     loadCrowdCheering() {
@@ -3414,6 +3462,7 @@ class GLBGame {
         this.quizScore = 0;
         this.quizAnswered = false;
         this.quizCorrect = false;
+        this.selectedAnswerIndex = null;
         
         this.updateQuizUI();
         console.log('Quiz started!');
@@ -3469,6 +3518,7 @@ class GLBGame {
         if (this.quizAnswered) return;
         
         this.quizAnswered = true;
+        this.selectedAnswerIndex = answerIndex; // Store the selected answer index
         const currentQuestion = this.quizQuestions[this.currentQuestionIndex];
         this.quizCorrect = (answerIndex === currentQuestion.correct);
         
@@ -3481,15 +3531,14 @@ class GLBGame {
             console.log('Quiz state - Active:', this.quizActive, 'Answered:', this.quizAnswered, 'Correct:', this.quizCorrect);
         }
         
-        // Update button colors
+        // Update selected answer button color immediately
         const buttons = document.querySelectorAll('#answerButtons button');
         buttons.forEach((button, index) => {
-            if (index === currentQuestion.correct) {
-                button.style.background = '#4CAF50'; // Green for correct
-            } else if (index === answerIndex && !this.quizCorrect) {
-                button.style.background = '#F44336'; // Red for wrong
-            }
             button.disabled = true;
+            // Highlight the selected answer immediately (but don't show if it's correct/wrong yet)
+            if (index === answerIndex) {
+                button.style.background = '#FF9800'; // Orange/amber to show it's selected
+            }
         });
         
         // Immediately trigger kick sequence after answering
@@ -3515,6 +3564,7 @@ class GLBGame {
         } else {
             this.quizAnswered = false;
             this.quizCorrect = false;
+            this.selectedAnswerIndex = null;
             this.updateQuizUI();
             console.log('🎯 Ready for next question! Click an answer to trigger kick sequence.');
         }
@@ -3603,19 +3653,11 @@ document.addEventListener('DOMContentLoaded', () => {
         window.game = game;
         
         // Add music controls
-        const playMusicButton = document.getElementById('playMusic');
-        if (playMusicButton) {
-            playMusicButton.addEventListener('click', () => {
-                console.log('Play music button clicked');
-                game.playBackgroundMusic();
-            });
-        }
-        
-        const stopMusicButton = document.getElementById('stopMusic');
-        if (stopMusicButton) {
-            stopMusicButton.addEventListener('click', () => {
-                console.log('Stop music button clicked');
-                game.stopBackgroundMusic();
+        const musicToggleButton = document.getElementById('musicToggle');
+        if (musicToggleButton) {
+            musicToggleButton.addEventListener('click', () => {
+                console.log('Music toggle button clicked');
+                game.toggleBackgroundMusic();
             });
         }
         

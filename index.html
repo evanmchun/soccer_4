@@ -67,7 +67,7 @@
         
         #shoeIcon {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
             right: 100px;
             width: 60px;
             height: 60px;
@@ -80,7 +80,7 @@
         
         #questionCounter {
             position: absolute;
-            top: 35px;
+            bottom: 20px;
             right: 20px;
             color: white;
             font-size: 24px;
@@ -94,7 +94,7 @@
         
         #scoreDisplay {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
             left: 20px;
             color: white;
             font-size: 24px;
@@ -104,6 +104,31 @@
             padding: 10px 15px;
             border-radius: 10px;
             backdrop-filter: blur(5px);
+        }
+        
+        #musicToggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: background 0.3s ease;
+        }
+        
+        #musicToggle:hover {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        #musicToggle.playing {
+            background: rgba(156, 39, 176, 0.5);
         }
         
     </style>
@@ -125,8 +150,6 @@
                 </div>
                 <button id="startQuiz" style="padding: 8px 16px; background: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;">Start Quiz</button>
             </div>
-            <button id="playMusic" style="margin-top: 10px; padding: 8px 16px; background: #9C27B0; color: white; border: none; border-radius: 5px; cursor: pointer;">🎵 Play Music</button>
-            <button id="stopMusic" style="margin-top: 5px; padding: 8px 16px; background: #F44336; color: white; border: none; border-radius: 5px; cursor: pointer;">🔇 Stop Music</button>
         </div>
         
         <div id="shoeIcon">
@@ -140,6 +163,8 @@
         <div id="scoreDisplay">
             SCORE: <span id="topScore">0</span>
         </div>
+        
+        <button id="musicToggle">🎵 Play Music</button>
         
     </div>
 
