@@ -93,6 +93,10 @@ class GLBGame {
         this.crowdCheering = null;
         this.crowdCheeringLoaded = false;
         
+        // Crowd missed properties (for goalie saves/blocks)
+        this.crowdMissed = null;
+        this.crowdMissedLoaded = false;
+        
         this.init();
     }
     
@@ -2618,6 +2622,9 @@ class GLBGame {
         
         console.log('🏆 GOALIE DEFLECTED THE BALL!');
         
+        // Play crowd missed sound when goalie saves the ball
+        this.playCrowdMissed();
+        
         // Calculate bounce direction based on which side the goalie is saving
         let bounceDirection = new THREE.Vector3();
         
@@ -2785,6 +2792,48 @@ class GLBGame {
             console.log('✅ Crowd cheering played successfully');
         }).catch((error) => {
             console.error('❌ Error playing crowd cheering:', error);
+        });
+    }
+    
+    loadCrowdMissed() {
+        console.log('=== LOADING CROWD MISSED SOUND ===');
+        console.log('Attempting to load: sounds/crowd-missed.mp3');
+        
+        // Create HTML5 audio for crowd missed sound
+        this.crowdMissed = new Audio('sounds/crowd-missed.mp3');
+        this.crowdMissed.volume = 0.7; // Same volume as cheering
+        this.crowdMissed.preload = 'auto';
+        
+        console.log('Crowd missed object created:', this.crowdMissed);
+        console.log('Audio src:', this.crowdMissed.src);
+        
+        // Test if crowd missed loads
+        this.crowdMissed.addEventListener('canplaythrough', () => {
+            console.log('✅ Crowd missed sound loaded successfully');
+            console.log('Missed duration:', this.crowdMissed.duration);
+            this.crowdMissedLoaded = true;
+        });
+        
+        this.crowdMissed.addEventListener('error', (e) => {
+            console.error('❌ Error loading crowd missed sound:', e);
+            console.error('Error details:', e.target.error);
+        });
+        
+        console.log('=== CROWD MISSED SOUND LOADING INITIATED ===');
+    }
+    
+    playCrowdMissed() {
+        if (!this.crowdMissed || !this.crowdMissedLoaded) {
+            console.log('⚠️ Crowd missed sound not available');
+            return;
+        }
+        
+        console.log('😞 Playing crowd missed sound for goalie save!');
+        this.crowdMissed.currentTime = 0; // Reset to beginning
+        this.crowdMissed.play().then(() => {
+            console.log('✅ Crowd missed sound played successfully');
+        }).catch((error) => {
+            console.error('❌ Error playing crowd missed sound:', error);
         });
     }
     
@@ -3531,6 +3580,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('About to call loadCrowdCheering()...');
         game.loadCrowdCheering();
         console.log('loadCrowdCheering() called');
+        
+        // Load the crowd missed sound (for goalie saves)
+        console.log('About to call loadCrowdMissed()...');
+        game.loadCrowdMissed();
+        console.log('loadCrowdMissed() called');
         
         // Make game globally accessible for debugging
         window.game = game;
