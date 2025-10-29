@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Question Admin - Soccer Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        .question-item {
+            background: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            position: relative;
+        }
+        
+        .question-item.editing {
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .question-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+        
+        .question-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #da190b;
+        }
+        
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #616161;
+        }
+        
+        .answers-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .answer-item {
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .answer-item.correct {
+            background: #c8e6c9;
+            border: 2px solid #4CAF50;
+        }
+        
+        .answer-text {
+            flex: 1;
+        }
+        
+        .correct-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .answers-input {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .answer-input-group {
+            position: relative;
+        }
+        
+        .answer-input-group input {
+            padding-right: 80px;
+        }
+        
+        .answer-input-group .correct-checkbox {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .correct-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .correct-checkbox input[type="radio"] {
+            width: auto;
+            cursor: pointer;
+        }
+        
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+        
+        .btn-large {
+            padding: 12px 24px;
+            font-size: 16px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .import-export {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .import-export textarea {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .alert-success {
+            background: #c8e6c9;
+            color: #2e7d32;
+            border: 1px solid #4CAF50;
+        }
+        
+        .alert-error {
+            background: #ffcdd2;
+            color: #c62828;
+            border: 1px solid #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚽ Quiz Question Manager</h1>
+            <p>Create and manage quiz questions for the Soccer Game</p>
+        </div>
+        
+        <div class="content">
+            <!-- Stats -->
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalQuestions">0</div>
+                    <div class="stat-label">Total Questions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="savedIndicator">●</div>
+                    <div class="stat-label">Status</div>
+                </div>
+            </div>
+            
+            <!-- Alert Messages -->
+            <div id="alertContainer"></div>
+            
+            <!-- Add New Question Form -->
+            <div class="section">
+                <h2 id="formTitle">➕ Add New Question</h2>
+                <form id="questionForm">
+                    <div class="form-group">
+                        <label for="questionText">Question Text:</label>
+                        <textarea id="questionText" placeholder="Enter your question here..." required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Answers (mark the correct one):</label>
+                        <div class="answers-input">
+                            <div class="answer-input-group">
+                                <input type="text" id="answer1" placeholder="Answer 1" required>
+                                <label class="correct-checkbox">
+                                    <input type="radio" name="correct" value="0" required>
+                                    Correct
+                                </label>
+                            </div>
+                            <div class="answer-input-group">
+                                <input type="text" id="answer2" placeholder="Answer 2" required>
+                                <label class="correct-checkbox">
+                                    <input type="radio" name="correct" value="1" required>
+                                    Correct
+                                </label>
+                            </div>
+                            <div class="answer-input-group">
+                                <input type="text" id="answer3" placeholder="Answer 3" required>
+                                <label class="correct-checkbox">
+                                    <input type="radio" name="correct" value="2" required>
+                                    Correct
+                                </label>
+                            </div>
+                            <div class="answer-input-group">
+                                <input type="text" id="answer4" placeholder="Answer 4" required>
+                                <label class="correct-checkbox">
+                                    <input type="radio" name="correct" value="3" required>
+                                    Correct
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="actions-bar">
+                        <button type="submit" class="btn btn-success btn-large" id="submitBtn">💾 Save Question</button>
+                        <button type="button" class="btn btn-secondary" id="cancelBtn" style="display: none;">Cancel</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear Form</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Questions List -->
+            <div class="section">
+                <h2>📋 All Questions</h2>
+                <div id="questionsList">
+                    <div class="empty-state">
+                        <h3>No questions yet</h3>
+                        <p>Add your first question above!</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Share Section -->
+            <div class="section" id="shareSection">
+                <h2>🔗 Share Your Quiz</h2>
+                <p style="color: #666; font-size: 14px;">Links will appear here after you save questions</p>
+            </div>
+            
+            <!-- Import/Export -->
+            <div class="section">
+                <h2>📤 Import / Export</h2>
+                <div class="import-export">
+                    <div>
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Export Questions</h3>
+                        <button class="btn btn-primary" onclick="exportQuestions()">📥 Download JSON</button>
+                        <textarea id="exportArea" readonly style="margin-top: 10px; min-height: 150px;" placeholder="Exported questions will appear here..."></textarea>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Import Questions</h3>
+                        <div class="file-input-wrapper">
+                            <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📂 Choose File</button>
+                            <input type="file" id="importFile" accept=".json" onchange="importQuestionsFromFile(event)">
+                        </div>
+                        <textarea id="importArea" style="margin-top: 10px; min-height: 150px;" placeholder='Paste JSON here or use file upload...\n\nFormat:\n[{"question": "Q?", "answers": ["A1","A2","A3","A4"], "correct": 0}]'></textarea>
+                        <button class="btn btn-primary" onclick="importQuestions()" style="margin-top: 10px; width: 100%;">📤 Import from Text</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let questions = [];
+        let editingIndex = -1;
+        let currentQuizId = null;
+        
+        // Generate a unique quiz ID
+        function generateQuizId() {
+            return 'quiz_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        // Get quiz ID from URL or generate new one
+        function getQuizId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let quizId = urlParams.get('quiz');
+            
+            if (!quizId) {
+                // Check if we have a saved quiz ID in localStorage
+                quizId = localStorage.getItem('currentQuizId');
+                
+                if (!quizId) {
+                    // Generate new quiz ID
+                    quizId = generateQuizId();
+                    localStorage.setItem('currentQuizId', quizId);
+                }
+            } else {
+                // Save the quiz ID from URL
+                localStorage.setItem('currentQuizId', quizId);
+            }
+            
+            return quizId;
+        }
+        
+        // Update URL with quiz ID (without reloading)
+        function updateUrlWithQuizId(quizId) {
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?quiz=' + quizId;
+            window.history.pushState({path: newUrl}, '', newUrl);
+        }
+        
+        // Load questions from localStorage on page load
+        function loadQuestions() {
+            try {
+                // Get or create quiz ID
+                currentQuizId = getQuizId();
+                console.log('📋 Quiz ID:', currentQuizId);
+                updateUrlWithQuizId(currentQuizId);
+                updateShareLink();
+                
+                console.log('📂 Loading questions from localStorage...');
+                const storageKey = `quizQuestions_${currentQuizId}`;
+                const stored = localStorage.getItem(storageKey);
+                console.log('Storage key:', storageKey);
+                console.log('Stored value exists:', !!stored);
+                if (stored) {
+                    console.log('Stored data length:', stored.length);
+                    questions = JSON.parse(stored);
+                    console.log('✅ Loaded', questions.length, 'questions from localStorage');
+                } else {
+                    console.log('ℹ️ No stored questions found for this quiz ID, starting fresh');
+                    // Load default questions
+                    questions = [
+                        {
+                            question: "What is the capital of France?",
+                            answers: ["London", "Paris", "Berlin", "Madrid"],
+                            correct: 1
+                        },
+                        {
+                            question: "What is 2 + 2?",
+                            answers: ["3", "4", "5", "6"],
+                            correct: 1
+                        },
+                        {
+                            question: "What is the largest planet in our solar system?",
+                            answers: ["Earth", "Saturn", "Jupiter", "Neptune"],
+                            correct: 2
+                        },
+                        {
+                            question: "Who painted the Mona Lisa?",
+                            answers: ["Van Gogh", "Picasso", "Da Vinci", "Michelangelo"],
+                            correct: 2
+                        },
+                        {
+                            question: "What is the chemical symbol for gold?",
+                            answers: ["Go", "Gd", "Au", "Ag"],
+                            correct: 2
+                        }
+                    ];
+                    // Don't auto-save on first load - let user add their own questions
+                }
+                renderQuestions();
+                updateStats();
+            } catch (e) {
+                showAlert('Error loading questions: ' + e.message, 'error');
+                questions = [];
+            }
+        }
+        
+        // Encode questions as base64 for URL sharing (workaround for localStorage limitation)
+        function encodeQuestionsForUrl(questions) {
+            try {
+                const json = JSON.stringify(questions);
+                // Use base64 encoding
+                const encoded = btoa(encodeURIComponent(json));
+                return encoded;
+            } catch (e) {
+                console.error('Error encoding questions:', e);
+                return null;
+            }
+        }
+        
+        // Update share link display
+        function updateShareLink() {
+            if (!currentQuizId) return;
+            
+            // Create URL with embedded questions (so learners get them even without localStorage)
+            let gameUrl = `${window.location.origin}${window.location.pathname.replace('admin.html', 'index.html')}?quiz=${currentQuizId}`;
+            
+            // If we have questions, encode them in the URL
+            if (questions.length > 0) {
+                const encodedQuestions = encodeQuestionsForUrl(questions);
+                if (encodedQuestions) {
+                    gameUrl += `&data=${encodedQuestions}`;
+                }
+            }
+            
+            const embedCode = `<iframe src="${gameUrl}" width="1200" height="800" frameborder="0" allowfullscreen></iframe>`;
+            
+            // Show share section if it exists
+            const shareSection = document.getElementById('shareSection');
+            if (shareSection) {
+                shareSection.innerHTML = `
+                    <h3 style="font-size: 16px; margin-bottom: 10px; color: #667eea;">🔗 Share Your Quiz</h3>
+                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Your Quiz ID: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${currentQuizId}</code></p>
+                    <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px;">
+                        <strong>📢 Important:</strong> The link below contains your questions embedded in it. When learners open it, the questions will automatically load and be saved to their browser. Share this link with your learners.
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label style="font-size: 12px;">Game Link (share this with learners):</label>
+                        <input type="text" id="gameLink" value="${gameUrl}" readonly style="font-size: 11px; padding: 8px;">
+                        <button class="btn btn-primary" onclick="copyGameLink()" style="padding: 6px 12px; font-size: 12px; margin-top: 5px; width: 100%;">📋 Copy Game Link</button>
+                        <p style="font-size: 11px; color: #666; margin-top: 5px;">This link contains ${questions.length} question(s) and is ready to share!</p>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 12px;">Embed Code (for LMS platforms):</label>
+                        <textarea id="embedCode" readonly style="font-size: 11px; padding: 8px; font-family: monospace; min-height: 80px;">${embedCode}</textarea>
+                        <button class="btn btn-success" onclick="copyEmbedCode()" style="padding: 6px 12px; font-size: 12px; margin-top: 5px; width: 100%;">📋 Copy Embed Code</button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="exportQuestionsForSharing()" style="padding: 6px 12px; font-size: 12px; width: 100%;">📦 Export Questions JSON (Alternative)</button>
+                        <p style="font-size: 11px; color: #666; margin-top: 5px;">Learners can import this file if the URL is too long</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function exportQuestionsForSharing() {
+            if (questions.length === 0) {
+                showAlert('No questions to export!', 'error');
+                return;
+            }
+            exportQuestions(); // Use existing export function
+        }
+        
+        function copyGameLink() {
+            const input = document.getElementById('gameLink');
+            input.select();
+            document.execCommand('copy');
+            showAlert('Game link copied to clipboard!', 'success');
+        }
+        
+        function copyEmbedCode() {
+            const textarea = document.getElementById('embedCode');
+            textarea.select();
+            document.execCommand('copy');
+            showAlert('Embed code copied to clipboard!', 'success');
+        }
+        
+        // Create new quiz button
+        function createNewQuiz() {
+            if (confirm('Create a new quiz? Your current questions will be saved with the current quiz ID.')) {
+                currentQuizId = generateQuizId();
+                localStorage.setItem('currentQuizId', currentQuizId);
+                questions = [];
+                updateUrlWithQuizId(currentQuizId);
+                updateShareLink();
+                renderQuestions();
+                updateStats();
+                showAlert('New quiz created! Share the new link to use it.', 'success');
+            }
+        }
+        
+        // Save questions to localStorage
+        function saveQuestions() {
+            try {
+                if (!currentQuizId) {
+                    currentQuizId = getQuizId();
+                    updateUrlWithQuizId(currentQuizId);
+                    updateShareLink();
+                }
+                
+                console.log('💾 Saving questions to localStorage...');
+                console.log('Quiz ID:', currentQuizId);
+                console.log('Questions to save:', questions);
+                console.log('Questions count:', questions.length);
+                const jsonString = JSON.stringify(questions);
+                console.log('JSON string length:', jsonString.length);
+                
+                const storageKey = `quizQuestions_${currentQuizId}`;
+                localStorage.setItem(storageKey, jsonString);
+                
+                // Verify it was saved
+                const verify = localStorage.getItem(storageKey);
+                if (verify) {
+                    console.log('✅ Verified: Questions saved successfully');
+                    console.log('Saved data:', verify.substring(0, 100) + '...');
+                    updateSavedIndicator(true);
+                    updateShareLink(); // Update share link after saving
+                    showAlert(`Questions saved successfully! (${questions.length} questions)\n\nYour quiz ID: ${currentQuizId}\nShare the link below to use this quiz.`, 'success');
+                } else {
+                    console.error('❌ Verification failed: localStorage.getItem returned null');
+                    showAlert('Error: Questions were not saved properly', 'error');
+                }
+            } catch (e) {
+                console.error('❌ Error saving questions:', e);
+                console.error('Error details:', e.message, e.stack);
+                showAlert('Error saving questions: ' + e.message, 'error');
+            }
+        }
+        
+        // Update stats
+        function updateStats() {
+            document.getElementById('totalQuestions').textContent = questions.length;
+        }
+        
+        // Update saved indicator
+        function updateSavedIndicator(saved) {
+            const indicator = document.getElementById('savedIndicator');
+            indicator.textContent = saved ? '●' : '○';
+            indicator.style.color = saved ? '#4CAF50' : '#f44336';
+        }
+        
+        // Show alert
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+            setTimeout(() => {
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        }
+        
+        // Render questions list
+        function renderQuestions() {
+            const container = document.getElementById('questionsList');
+            
+            if (questions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No questions yet</h3>
+                        <p>Add your first question above!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = questions.map((q, index) => `
+                <div class="question-item" id="question-${index}">
+                    <div class="question-header">
+                        <div class="question-text">${index + 1}. ${q.question}</div>
+                        <div class="question-actions">
+                            <button class="btn btn-primary" onclick="editQuestion(${index})">✏️ Edit</button>
+                            <button class="btn btn-danger" onclick="deleteQuestion(${index})">🗑️ Delete</button>
+                        </div>
+                    </div>
+                    <div class="answers-list">
+                        ${q.answers.map((answer, ansIndex) => `
+                            <div class="answer-item ${ansIndex === q.correct ? 'correct' : ''}">
+                                <span class="answer-text">${answer}</span>
+                                ${ansIndex === q.correct ? '<span class="correct-badge">✓ Correct</span>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Handle form submission
+        document.getElementById('questionForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const questionText = document.getElementById('questionText').value.trim();
+            const answer1 = document.getElementById('answer1').value.trim();
+            const answer2 = document.getElementById('answer2').value.trim();
+            const answer3 = document.getElementById('answer3').value.trim();
+            const answer4 = document.getElementById('answer4').value.trim();
+            const correct = parseInt(document.querySelector('input[name="correct"]:checked')?.value);
+            
+            if (!questionText || !answer1 || !answer2 || !answer3 || !answer4 || isNaN(correct)) {
+                showAlert('Please fill in all fields and select the correct answer!', 'error');
+                return;
+            }
+            
+            const question = {
+                question: questionText,
+                answers: [answer1, answer2, answer3, answer4],
+                correct: correct
+            };
+            
+            if (editingIndex >= 0) {
+                // Update existing question
+                questions[editingIndex] = question;
+                showAlert('Question updated!', 'success');
+                editingIndex = -1;
+                document.getElementById('formTitle').textContent = '➕ Add New Question';
+                document.getElementById('submitBtn').textContent = '💾 Save Question';
+                document.getElementById('cancelBtn').style.display = 'none';
+            } else {
+                // Add new question
+                questions.push(question);
+                showAlert('Question added!', 'success');
+            }
+            
+            saveQuestions();
+            renderQuestions();
+            updateStats();
+            clearForm();
+        });
+        
+        // Edit question
+        function editQuestion(index) {
+            const q = questions[index];
+            editingIndex = index;
+            
+            document.getElementById('questionText').value = q.question;
+            document.getElementById('answer1').value = q.answers[0];
+            document.getElementById('answer2').value = q.answers[1];
+            document.getElementById('answer3').value = q.answers[2];
+            document.getElementById('answer4').value = q.answers[3];
+            document.querySelector(`input[name="correct"][value="${q.correct}"]`).checked = true;
+            
+            document.getElementById('formTitle').textContent = `✏️ Edit Question ${index + 1}`;
+            document.getElementById('submitBtn').textContent = '💾 Update Question';
+            document.getElementById('cancelBtn').style.display = 'inline-block';
+            
+            // Scroll to form
+            document.querySelector('.section:first-of-type').scrollIntoView({ behavior: 'smooth' });
+            
+            // Highlight question being edited
+            document.querySelectorAll('.question-item').forEach(item => {
+                item.classList.remove('editing');
+            });
+            document.getElementById(`question-${index}`).classList.add('editing');
+        }
+        
+        // Delete question
+        function deleteQuestion(index) {
+            if (confirm(`Delete question ${index + 1}: "${questions[index].question}"?`)) {
+                questions.splice(index, 1);
+                saveQuestions();
+                renderQuestions();
+                updateStats();
+                showAlert('Question deleted!', 'success');
+            }
+        }
+        
+        // Clear form
+        function clearForm() {
+            document.getElementById('questionForm').reset();
+            editingIndex = -1;
+            document.getElementById('formTitle').textContent = '➕ Add New Question';
+            document.getElementById('submitBtn').textContent = '💾 Save Question';
+            document.getElementById('cancelBtn').style.display = 'none';
+            document.querySelectorAll('.question-item').forEach(item => {
+                item.classList.remove('editing');
+            });
+        }
+        
+        // Cancel button
+        document.getElementById('cancelBtn').addEventListener('click', clearForm);
+        
+        // Export questions
+        function exportQuestions() {
+            const json = JSON.stringify(questions, null, 2);
+            document.getElementById('exportArea').value = json;
+            
+            // Download as file
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quiz-questions.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showAlert('Questions exported!', 'success');
+        }
+        
+        // Import questions from file
+        function importQuestionsFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('importArea').value = e.target.result;
+                importQuestions();
+            };
+            reader.readAsText(file);
+        }
+        
+        // Import questions from text
+        function importQuestions() {
+            const importText = document.getElementById('importArea').value.trim();
+            if (!importText) {
+                showAlert('Please paste JSON or upload a file!', 'error');
+                return;
+            }
+            
+            try {
+                const imported = JSON.parse(importText);
+                
+                if (!Array.isArray(imported)) {
+                    throw new Error('Questions must be an array');
+                }
+                
+                // Validate questions
+                const validQuestions = imported.filter((q, i) => {
+                    if (!q.question || !Array.isArray(q.answers) || typeof q.correct !== 'number') {
+                        console.warn(`Skipping invalid question at index ${i}`);
+                        return false;
+                    }
+                    if (q.correct < 0 || q.correct >= q.answers.length) {
+                        console.warn(`Skipping question ${i + 1}: invalid correct index`);
+                        return false;
+                    }
+                    return true;
+                });
+                
+                if (validQuestions.length === 0) {
+                    throw new Error('No valid questions found in import');
+                }
+                
+                if (confirm(`Import ${validQuestions.length} question(s)? This will replace all current questions.`)) {
+                    questions = validQuestions;
+                    saveQuestions();
+                    renderQuestions();
+                    updateStats();
+                    document.getElementById('importArea').value = '';
+                    showAlert(`Successfully imported ${validQuestions.length} question(s)!`, 'success');
+                }
+            } catch (e) {
+                showAlert('Import error: ' + e.message, 'error');
+            }
+        }
+        
+        // Initialize on page load
+        loadQuestions();
+        
+        // Add "New Quiz" button functionality
+        window.createNewQuiz = createNewQuiz;
+        
+        // Mark as unsaved when making changes
+        document.getElementById('questionForm').addEventListener('input', () => {
+            updateSavedIndicator(false);
+        });
+    </script>
+</body>
+</html>
+

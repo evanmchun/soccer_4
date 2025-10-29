@@ -55,33 +55,10 @@ class GLBGame {
         this.quizActive = false;
         this.currentQuestionIndex = 0;
         this.quizScore = 0;
-        this.quizQuestions = [
-            {
-                question: "What is the capital of France?",
-                answers: ["London", "Paris", "Berlin", "Madrid"],
-                correct: 1
-            },
-            {
-                question: "What is 2 + 2?",
-                answers: ["3", "4", "5", "6"],
-                correct: 1
-            },
-            {
-                question: "What is the largest planet in our solar system?",
-                answers: ["Earth", "Saturn", "Jupiter", "Neptune"],
-                correct: 2
-            },
-            {
-                question: "Who painted the Mona Lisa?",
-                answers: ["Van Gogh", "Picasso", "Da Vinci", "Michelangelo"],
-                correct: 2
-            },
-            {
-                question: "What is the chemical symbol for gold?",
-                answers: ["Go", "Gd", "Au", "Ag"],
-                correct: 2
-            }
-        ];
+        this.quizQuestions = [];
+        
+        // Load questions from localStorage (set by admin page) or use defaults
+        this.loadQuizQuestions();
         this.quizAnswered = false;
         this.quizCorrect = false;
         this.selectedAnswerIndex = null;
@@ -3456,6 +3433,153 @@ class GLBGame {
     }
     
     // Quiz system methods
+    loadQuizQuestions() {
+        // Get quiz ID and encoded data from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const quizId = urlParams.get('quiz');
+        const encodedData = urlParams.get('data');
+        
+        // If questions are embedded in URL, decode and use them
+        if (encodedData) {
+            try {
+                console.log('📥 Found questions embedded in URL, decoding...');
+                const decoded = decodeURIComponent(atob(encodedData));
+                const questions = JSON.parse(decoded);
+                
+                // Validate questions
+                if (Array.isArray(questions) && questions.length > 0) {
+                    const validQuestions = questions.filter(q => 
+                        q && 
+                        q.question && 
+                        Array.isArray(q.answers) && 
+                        q.answers.length >= 2 &&
+                        typeof q.correct === 'number' &&
+                        q.correct >= 0 && 
+                        q.correct < q.answers.length
+                    );
+                    
+                    if (validQuestions.length > 0) {
+                        this.quizQuestions = validQuestions;
+                        console.log(`✅ Loaded ${validQuestions.length} questions from URL`);
+                        
+                        // Save to localStorage for this quiz ID (so it persists)
+                        if (quizId) {
+                            const storageKey = `quizQuestions_${quizId}`;
+                            localStorage.setItem(storageKey, JSON.stringify(validQuestions));
+                            console.log(`💾 Saved questions to localStorage for quiz ID: ${quizId}`);
+                        }
+                        
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error decoding questions from URL:', e);
+            }
+        }
+        
+        if (!quizId) {
+            console.log('ℹ️ No quiz ID in URL, using default questions');
+            this.loadDefaultQuestions();
+            return;
+        }
+        
+        console.log('🔍 Loading questions for quiz ID:', quizId);
+        
+        // Try to load questions from localStorage (if already saved)
+        try {
+            const storageKey = `quizQuestions_${quizId}`;
+            const stored = localStorage.getItem(storageKey);
+            console.log('🔍 Checking localStorage for:', storageKey);
+            console.log('Stored value exists:', !!stored);
+            
+            if (stored) {
+                const questions = JSON.parse(stored);
+                console.log('Parsed questions:', questions);
+                console.log('Is array:', Array.isArray(questions));
+                console.log('Array length:', Array.isArray(questions) ? questions.length : 0);
+                
+                // Validate questions
+                if (Array.isArray(questions) && questions.length > 0) {
+                    // Validate each question
+                    const validQuestions = questions.filter((q, index) => {
+                        const isValid = q && 
+                            q.question && 
+                            Array.isArray(q.answers) && 
+                            q.answers.length >= 2 &&
+                            typeof q.correct === 'number' &&
+                            q.correct >= 0 && 
+                            q.correct < q.answers.length;
+                        
+                        if (!isValid) {
+                            console.warn(`❌ Question ${index + 1} failed validation:`, q);
+                        }
+                        return isValid;
+                    });
+                    
+                    console.log(`Valid questions: ${validQuestions.length} out of ${questions.length}`);
+                    
+                    if (validQuestions.length > 0) {
+                        this.quizQuestions = validQuestions;
+                        console.log(`✅ Loaded ${validQuestions.length} questions from admin (Quiz ID: ${quizId}):`, validQuestions);
+                        return;
+                    } else {
+                        console.warn('⚠️ No valid questions found after filtering');
+                    }
+                } else {
+                    console.warn('⚠️ Questions is not a valid array or is empty');
+                }
+            } else {
+                console.log(`ℹ️ No questions found in localStorage for quiz ID: ${quizId}`);
+                console.log('💡 The admin needs to share the link with questions embedded in the URL');
+                console.log('💡 Or the learner needs to import the questions JSON file');
+            }
+        } catch (e) {
+            console.error('❌ Error loading questions from localStorage:', e);
+            console.error('Error stack:', e.stack);
+        }
+        
+        // Fallback to default questions if none found or invalid
+        this.loadDefaultQuestions();
+    }
+    
+    loadDefaultQuestions() {
+        this.quizQuestions = [
+            {
+                question: "What is the capital of France?",
+                answers: ["London", "Paris", "Berlin", "Madrid"],
+                correct: 1
+            },
+            {
+                question: "What is 2 + 2?",
+                answers: ["3", "4", "5", "6"],
+                correct: 1
+            },
+            {
+                question: "What is the largest planet in our solar system?",
+                answers: ["Earth", "Saturn", "Jupiter", "Neptune"],
+                correct: 2
+            },
+            {
+                question: "Who painted the Mona Lisa?",
+                answers: ["Van Gogh", "Picasso", "Da Vinci", "Michelangelo"],
+                correct: 2
+            },
+            {
+                question: "What is the chemical symbol for gold?",
+                answers: ["Go", "Gd", "Au", "Ag"],
+                correct: 2
+            }
+        ];
+        console.log('Using default questions');
+    }
+    
+    // Method to reload questions (useful when admin updates questions)
+    reloadQuizQuestions() {
+        this.loadQuizQuestions();
+        this.updateQuizUI(); // Update UI if quiz is already started
+        console.log(`Questions reloaded. Total: ${this.quizQuestions.length}`);
+    }
+    
     startQuiz() {
         this.quizActive = true;
         this.currentQuestionIndex = 0;
