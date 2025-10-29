@@ -157,26 +157,36 @@ class GLBGame {
     }
     
     createLights() {
-        // Bright ambient light for natural outdoor illumination
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+        // Further reduced ambient light to make shadows more visible
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambientLight);
         
-        // Soft main directional light (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight.position.set(20, 20, 10);
+        // Stronger directional light for more prominent shadows - positioned more overhead for shorter shadows
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(0, 50, 0); // Even higher for very short shadows
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 4096;
         directionalLight.shadow.mapSize.height = 4096;
         directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 100;
-        directionalLight.shadow.camera.left = -30;
-        directionalLight.shadow.camera.right = 30;
-        directionalLight.shadow.camera.top = 30;
-        directionalLight.shadow.camera.bottom = -30;
+        directionalLight.shadow.camera.far = 200;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -150; // Extended to cover goalie/goal post area
+        
+        // Properly set up the target to point towards goalie/goal post area
+        directionalLight.target.position.set(0, 0, -100);
+        directionalLight.target.updateMatrixWorld();
+        
+        // Update shadow camera to look at the target area
+        directionalLight.shadow.camera.position.copy(directionalLight.position);
+        directionalLight.shadow.camera.lookAt(directionalLight.target.position);
+        directionalLight.shadow.camera.updateProjectionMatrix();
+        
         this.scene.add(directionalLight);
         
-        // Bright hemisphere light for natural outdoor lighting (removed dark green ground color)
-        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x87CEEB, 0.8);
+        // Reduced hemisphere light to make shadows more visible
+        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x87CEEB, 0.4);
         this.scene.add(hemisphereLight);
         
         // Fill light from the front (no shadows)
@@ -188,6 +198,561 @@ class GLBGame {
         // Removed right-side fill light to prevent bright side lighting
         
         // Removed point lights to prevent bright side lighting on character
+    }
+    
+    // Clean up all test objects and debug helpers
+    cleanupShadowTests() {
+        console.log('Cleaning up shadow test objects...');
+        
+        // Remove simple test objects
+        this.removeSimpleShadowTestObjects();
+        
+        // Remove shadow camera helpers
+        this.disableShadowDebug();
+        
+        console.log('✅ All shadow test objects and helpers removed');
+    }
+    
+    // Force directional light to point towards goalie/goal post area
+    fixDirectionalLightTarget() {
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            console.log('Fixing directional light target...');
+            
+            // Set the light to point towards the goalie/goal post area
+            directionalLight.target.position.set(0, 0, -100);
+            directionalLight.target.updateMatrixWorld();
+            
+            // Update shadow camera to look at the target area
+            directionalLight.shadow.camera.position.copy(directionalLight.position);
+            directionalLight.shadow.camera.lookAt(directionalLight.target.position);
+            directionalLight.shadow.camera.updateProjectionMatrix();
+            
+            console.log('✅ Directional light target set to:', directionalLight.target.position);
+            console.log('✅ Shadow camera now looking at goalie/goal post area');
+        } else {
+            console.log('❌ No directional light found');
+        }
+    }
+    
+    // Debug shadow camera and directional light setup
+    debugShadowSystem() {
+        console.log('=== SHADOW SYSTEM DEBUG ===');
+        
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            console.log('Directional Light:', {
+                position: directionalLight.position,
+                intensity: directionalLight.intensity,
+                castShadow: directionalLight.castShadow,
+                target: directionalLight.target ? directionalLight.target.position : 'no target'
+            });
+            
+            console.log('Shadow Camera:', {
+                position: directionalLight.shadow.camera.position,
+                bounds: {
+                    left: directionalLight.shadow.camera.left,
+                    right: directionalLight.shadow.camera.right,
+                    top: directionalLight.shadow.camera.top,
+                    bottom: directionalLight.shadow.camera.bottom,
+                    near: directionalLight.shadow.camera.near,
+                    far: directionalLight.shadow.camera.far
+                },
+                mapSize: directionalLight.shadow.mapSize.width + 'x' + directionalLight.shadow.mapSize.height
+            });
+            
+            // Check if goalie/goal post are within shadow camera bounds
+            if (this.goalie) {
+                const goalieInBounds = this.goalie.position.z >= directionalLight.shadow.camera.bottom && 
+                                     this.goalie.position.z <= directionalLight.shadow.camera.top &&
+                                     this.goalie.position.x >= directionalLight.shadow.camera.left && 
+                                     this.goalie.position.x <= directionalLight.shadow.camera.right;
+                console.log('Goalie within shadow camera bounds:', goalieInBounds);
+            }
+            
+            if (this.goalPost) {
+                const goalInBounds = this.goalPost.position.z >= directionalLight.shadow.camera.bottom && 
+                                    this.goalPost.position.z <= directionalLight.shadow.camera.top &&
+                                    this.goalPost.position.x >= directionalLight.shadow.camera.left && 
+                                    this.goalPost.position.x <= directionalLight.shadow.camera.right;
+                console.log('Goal post within shadow camera bounds:', goalInBounds);
+            }
+            
+        } else {
+            console.log('❌ No directional light with shadows found!');
+        }
+        
+        // Check renderer shadow settings
+        console.log('Renderer Shadow Settings:', {
+            enabled: this.renderer.shadowMap.enabled,
+            type: this.renderer.shadowMap.type,
+            autoUpdate: this.renderer.shadowMap.autoUpdate
+        });
+        
+        console.log('=== END SHADOW SYSTEM DEBUG ===');
+    }
+    
+    // Update shadow camera bounds to cover goalie and goal post area
+    updateShadowCameraBounds() {
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            console.log('Updating shadow camera bounds...');
+            directionalLight.shadow.camera.left = -50;
+            directionalLight.shadow.camera.right = 50;
+            directionalLight.shadow.camera.top = 50;
+            directionalLight.shadow.camera.bottom = -150; // Cover goalie/goal post at Z=-100
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 200;
+            
+            // Force shadow map update
+            directionalLight.shadow.mapSize.width = 4096;
+            directionalLight.shadow.mapSize.height = 4096;
+            directionalLight.shadow.camera.updateProjectionMatrix();
+            
+            console.log('✅ Shadow camera bounds updated:', {
+                left: directionalLight.shadow.camera.left,
+                right: directionalLight.shadow.camera.right,
+                top: directionalLight.shadow.camera.top,
+                bottom: directionalLight.shadow.camera.bottom,
+                near: directionalLight.shadow.camera.near,
+                far: directionalLight.shadow.camera.far
+            });
+        } else {
+            console.log('❌ No directional light found');
+        }
+    }
+    
+    // Create simple replacement goalie and goal post for shadow testing
+    createSimpleShadowTestObjects() {
+        console.log('Creating simple shadow test objects...');
+        
+        // Create simple goalie (cylinder)
+        const goalieGeometry = new THREE.CylinderGeometry(0.5, 0.5, 3, 8);
+        const goalieMaterial = new THREE.MeshLambertMaterial({ color: 0x0000ff }); // Blue
+        const simpleGoalie = new THREE.Mesh(goalieGeometry, goalieMaterial);
+        simpleGoalie.position.set(0, 1.5, -100); // Same position as real goalie
+        simpleGoalie.castShadow = true;
+        simpleGoalie.receiveShadow = true;
+        simpleGoalie.name = 'simpleGoalie';
+        this.scene.add(simpleGoalie);
+        
+        // Create simple goal post (box)
+        const goalGeometry = new THREE.BoxGeometry(2, 4, 0.2);
+        const goalMaterial = new THREE.MeshLambertMaterial({ color: 0xffff00 }); // Yellow
+        const simpleGoal = new THREE.Mesh(goalGeometry, goalMaterial);
+        simpleGoal.position.set(0, 2, -100); // Same position as real goal post
+        simpleGoal.castShadow = true;
+        simpleGoal.receiveShadow = true;
+        simpleGoal.name = 'simpleGoal';
+        this.scene.add(simpleGoal);
+        
+        console.log('✅ Simple test objects created:');
+        console.log('- Blue cylinder (goalie) at:', simpleGoalie.position);
+        console.log('- Yellow box (goal post) at:', simpleGoal.position);
+        console.log('These should cast shadows if the shadow system is working');
+        
+        return { simpleGoalie, simpleGoal };
+    }
+    
+    // Remove simple test objects
+    removeSimpleShadowTestObjects() {
+        const simpleGoalie = this.scene.children.find(child => child.name === 'simpleGoalie');
+        const simpleGoal = this.scene.children.find(child => child.name === 'simpleGoal');
+        
+        if (simpleGoalie) {
+            this.scene.remove(simpleGoalie);
+            console.log('✅ Simple goalie removed');
+        }
+        if (simpleGoal) {
+            this.scene.remove(simpleGoal);
+            console.log('✅ Simple goal post removed');
+        }
+    }
+    
+    // Comprehensive shadow debugging for goalie and goal post
+    debugGoalieAndGoalShadows() {
+        console.log('=== COMPREHENSIVE SHADOW DEBUG ===');
+        
+        // Check if objects exist
+        console.log('Goalie exists:', !!this.goalie);
+        console.log('Goal post exists:', !!this.goalPost);
+        
+        if (this.goalie) {
+            console.log('=== GOALIE ANALYSIS ===');
+            console.log('Goalie position:', this.goalie.position);
+            console.log('Goalie visible:', this.goalie.visible);
+            console.log('Goalie scale:', this.goalie.scale);
+            
+            let meshCount = 0;
+            let shadowCastingCount = 0;
+            let basicMaterialCount = 0;
+            let lambertMaterialCount = 0;
+            
+            this.goalie.traverse((child) => {
+                if (child.isMesh) {
+                    meshCount++;
+                    console.log(`Mesh ${meshCount}:`, {
+                        name: child.name || 'unnamed',
+                        castShadow: child.castShadow,
+                        receiveShadow: child.receiveShadow,
+                        visible: child.visible,
+                        materialType: child.material ? child.material.type : 'no material',
+                        position: child.position,
+                        scale: child.scale
+                    });
+                    
+                    if (child.castShadow) shadowCastingCount++;
+                    if (child.material) {
+                        if (child.material.isMeshBasicMaterial) basicMaterialCount++;
+                        if (child.material.isMeshLambertMaterial) lambertMaterialCount++;
+                    }
+                }
+            });
+            
+            console.log('Goalie summary:', {
+                totalMeshes: meshCount,
+                shadowCastingMeshes: shadowCastingCount,
+                basicMaterials: basicMaterialCount,
+                lambertMaterials: lambertMaterialCount
+            });
+        }
+        
+        if (this.goalPost) {
+            console.log('=== GOAL POST ANALYSIS ===');
+            console.log('Goal post position:', this.goalPost.position);
+            console.log('Goal post visible:', this.goalPost.visible);
+            console.log('Goal post scale:', this.goalPost.scale);
+            
+            let meshCount = 0;
+            let shadowCastingCount = 0;
+            let basicMaterialCount = 0;
+            let lambertMaterialCount = 0;
+            
+            this.goalPost.traverse((child) => {
+                if (child.isMesh) {
+                    meshCount++;
+                    console.log(`Mesh ${meshCount}:`, {
+                        name: child.name || 'unnamed',
+                        castShadow: child.castShadow,
+                        receiveShadow: child.receiveShadow,
+                        visible: child.visible,
+                        materialType: child.material ? child.material.type : 'no material',
+                        position: child.position,
+                        scale: child.scale
+                    });
+                    
+                    if (child.castShadow) shadowCastingCount++;
+                    if (child.material) {
+                        if (child.material.isMeshBasicMaterial) basicMaterialCount++;
+                        if (child.material.isMeshLambertMaterial) lambertMaterialCount++;
+                    }
+                }
+            });
+            
+            console.log('Goal post summary:', {
+                totalMeshes: meshCount,
+                shadowCastingMeshes: shadowCastingCount,
+                basicMaterials: basicMaterialCount,
+                lambertMaterials: lambertMaterialCount
+            });
+        }
+        
+        // Check directional light
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            console.log('=== DIRECTIONAL LIGHT ===');
+            console.log('Position:', directionalLight.position);
+            console.log('Intensity:', directionalLight.intensity);
+            console.log('Cast shadow:', directionalLight.castShadow);
+            console.log('Shadow map size:', directionalLight.shadow.mapSize.width + 'x' + directionalLight.shadow.mapSize.height);
+            console.log('Shadow camera bounds:', {
+                left: directionalLight.shadow.camera.left,
+                right: directionalLight.shadow.camera.right,
+                top: directionalLight.shadow.camera.top,
+                bottom: directionalLight.shadow.camera.bottom,
+                near: directionalLight.shadow.camera.near,
+                far: directionalLight.shadow.camera.far
+            });
+        }
+        
+        console.log('=== END DEBUG ===');
+    }
+    
+    // Force fix shadows on goalie and goal post (for already loaded objects)
+    fixGoalieAndGoalShadows() {
+        console.log('=== FIXING GOALIE AND GOAL SHADOWS ===');
+        
+        // Fix goalie shadows
+        if (this.goalie) {
+            console.log('Fixing goalie shadows...');
+            this.goalie.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    // Fix material for shadows
+                    if (child.material) {
+                        if (child.material.isMeshBasicMaterial) {
+                            const newMaterial = new THREE.MeshLambertMaterial({
+                                color: child.material.color,
+                                map: child.material.map,
+                                transparent: child.material.transparent,
+                                opacity: child.material.opacity
+                            });
+                            child.material = newMaterial;
+                        }
+                        child.material.needsUpdate = true;
+                    }
+                    console.log('Fixed goalie mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Goalie not found');
+        }
+        
+        // Fix goal post shadows
+        if (this.goalPost) {
+            console.log('Fixing goal post shadows...');
+            this.goalPost.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    // Fix material for shadows
+                    if (child.material) {
+                        if (child.material.isMeshBasicMaterial) {
+                            const newMaterial = new THREE.MeshLambertMaterial({
+                                color: child.material.color,
+                                map: child.material.map,
+                                transparent: child.material.transparent,
+                                opacity: child.material.opacity
+                            });
+                            child.material = newMaterial;
+                        }
+                        child.material.needsUpdate = true;
+                    }
+                    console.log('Fixed goal post mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Goal post not found');
+        }
+        
+        console.log('✅ Shadow fixes applied to goalie and goal post');
+    }
+    
+    // Create a simple test cube to verify shadows are working
+    createShadowTestCube() {
+        console.log('Creating shadow test cube...');
+        
+        // Create a simple cube that should cast a shadow
+        const geometry = new THREE.BoxGeometry(2, 4, 2);
+        const material = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red cube
+        const testCube = new THREE.Mesh(geometry, material);
+        
+        // Position it near the goalie area
+        testCube.position.set(10, 2, -50); // To the right of the field
+        testCube.castShadow = true;
+        testCube.receiveShadow = true;
+        
+        this.scene.add(testCube);
+        
+        console.log('✅ Shadow test cube added at position:', testCube.position);
+        console.log('You should see a red cube casting a shadow on the field');
+        
+        return testCube;
+    }
+    
+    // Remove the shadow test cube
+    removeShadowTestCube() {
+        const testCube = this.scene.children.find(child => 
+            child.isMesh && child.material && child.material.color && 
+            child.material.color.getHex() === 0xff0000
+        );
+        
+        if (testCube) {
+            this.scene.remove(testCube);
+            console.log('✅ Shadow test cube removed');
+        } else {
+            console.log('❌ No shadow test cube found');
+        }
+    }
+    
+    // Force enable shadows on all objects and check their positions
+    forceEnableShadows() {
+        console.log('=== FORCE ENABLING SHADOWS ===');
+        
+        // Check and force enable shadows on goalie
+        if (this.goalie) {
+            console.log('Goalie position:', this.goalie.position);
+            console.log('Goalie visible:', this.goalie.visible);
+            this.goalie.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    console.log('Forced shadows on goalie mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Goalie not found!');
+        }
+        
+        // Check and force enable shadows on goal post
+        if (this.goalPost) {
+            console.log('Goal post position:', this.goalPost.position);
+            console.log('Goal post visible:', this.goalPost.visible);
+            this.goalPost.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    console.log('Forced shadows on goal post mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Goal post not found!');
+        }
+        
+        // Check and force enable shadows on ball
+        if (this.ball) {
+            console.log('Ball position:', this.ball.position);
+            console.log('Ball visible:', this.ball.visible);
+            this.ball.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    console.log('Forced shadows on ball mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Ball not found!');
+        }
+        
+        // Check and force enable shadows on player
+        if (this.model) {
+            console.log('Player position:', this.model.position);
+            console.log('Player visible:', this.model.visible);
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    console.log('Forced shadows on player mesh:', child.name || 'unnamed');
+                }
+            });
+        } else {
+            console.log('❌ Player not found!');
+        }
+        
+        // Force enable shadows on field
+        this.scene.traverse((child) => {
+            if (child.isMesh && child.material && child.material.color && 
+                child.material.color.getHex() === 0x228B22) { // Turf field color
+                child.receiveShadow = true;
+                console.log('Forced shadows on field mesh:', child.name || 'unnamed');
+            }
+        });
+        
+        console.log('✅ Shadows force-enabled on all objects');
+    }
+    
+    // Helper method to check shadow configuration of objects
+    checkShadowConfiguration() {
+        console.log('=== SHADOW CONFIGURATION CHECK ===');
+        
+        // Check directional light
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            console.log('✅ Directional light found:', {
+                intensity: directionalLight.intensity,
+                castShadow: directionalLight.castShadow,
+                shadowMapSize: directionalLight.shadow.mapSize.width + 'x' + directionalLight.shadow.mapSize.height
+            });
+        } else {
+            console.log('❌ No directional light with shadows found!');
+        }
+        
+        // Check goalie
+        if (this.goalie) {
+            let goalieShadowCount = 0;
+            this.goalie.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.castShadow) goalieShadowCount++;
+                }
+            });
+            console.log('✅ Goalie shadow meshes:', goalieShadowCount);
+        } else {
+            console.log('❌ Goalie not loaded');
+        }
+        
+        // Check goal post
+        if (this.goalPost) {
+            let goalShadowCount = 0;
+            this.goalPost.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.castShadow) goalShadowCount++;
+                }
+            });
+            console.log('✅ Goal post shadow meshes:', goalShadowCount);
+        } else {
+            console.log('❌ Goal post not loaded');
+        }
+        
+        // Check ball
+        if (this.ball) {
+            let ballShadowCount = 0;
+            this.ball.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.castShadow) ballShadowCount++;
+                }
+            });
+            console.log('✅ Ball shadow meshes:', ballShadowCount);
+        } else {
+            console.log('❌ Ball not loaded');
+        }
+        
+        // Check field
+        const fieldMeshes = this.scene.children.filter(child => 
+            child.isMesh && child.receiveShadow
+        );
+        console.log('✅ Field meshes receiving shadows:', fieldMeshes.length);
+    }
+    
+    // Helper method to enable shadow camera visualization for debugging
+    enableShadowDebug() {
+        const directionalLight = this.scene.children.find(child => 
+            child instanceof THREE.DirectionalLight && child.castShadow
+        );
+        
+        if (directionalLight) {
+            const shadowHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+            this.scene.add(shadowHelper);
+            console.log('Shadow camera helper added. You should see a yellow wireframe box showing shadow camera bounds.');
+            return true;
+        } else {
+            console.log('No directional light with shadows found!');
+            return false;
+        }
+    }
+    
+    // Helper method to disable shadow camera visualization
+    disableShadowDebug() {
+        const helpers = this.scene.children.filter(child => child instanceof THREE.CameraHelper);
+        helpers.forEach(helper => this.scene.remove(helper));
+        console.log('Shadow camera helpers removed.');
     }
     
     createTurfField() {
@@ -828,6 +1393,21 @@ class GLBGame {
                         child.receiveShadow = true;
                         // Ensure no collision detection
                         child.userData = { noCollision: true };
+                        
+                        // Ensure material is shadow-compatible
+                        if (child.material) {
+                            if (child.material.isMeshBasicMaterial) {
+                                // Convert BasicMaterial to LambertMaterial for shadows
+                                const newMaterial = new THREE.MeshLambertMaterial({
+                                    color: child.material.color,
+                                    map: child.material.map,
+                                    transparent: child.material.transparent,
+                                    opacity: child.material.opacity
+                                });
+                                child.material = newMaterial;
+                            }
+                            child.material.needsUpdate = true;
+                        }
                     }
                 });
                 
@@ -971,19 +1551,19 @@ class GLBGame {
         if (this.goalScored) {
             // Only apply gravity if ball hasn't landed yet
             if (!this.ballLanded) {
-                // Apply gravity to make ball fall
-                this.ballVelocity.y += this.ballGravity;
-                
-                // Update ball position
-                this.ball.position.add(this.ballVelocity);
-                
-                // Check if ball hit the ground
+            // Apply gravity to make ball fall
+            this.ballVelocity.y += this.ballGravity;
+            
+            // Update ball position
+            this.ball.position.add(this.ballVelocity);
+            
+        // Check if ball hit the ground
                 if (this.ball.position.y <= 0.9) {
                     this.ball.position.y = 0.9; // Slightly higher position
-                    this.ballVelocity.y = 0; // Stop falling
-                    this.ballLanded = true;
+            this.ballVelocity.y = 0; // Stop falling
+            this.ballLanded = true;
                 }
-            }
+        }
             
             // Ball stays in goal area permanently until R key is pressed
             // No automatic reset - ball will stay there until manual reset
@@ -1358,8 +1938,20 @@ class GLBGame {
                         child.castShadow = true;
                         child.receiveShadow = true;
                         
-                        // Improve material properties for better visibility
+                        // Improve material properties for better visibility and shadow compatibility
                         if (child.material) {
+                            // Ensure material is shadow-compatible
+                            if (child.material.isMeshBasicMaterial) {
+                                // Convert BasicMaterial to LambertMaterial for shadows
+                                const newMaterial = new THREE.MeshLambertMaterial({
+                                    color: child.material.color,
+                                    map: child.material.map,
+                                    transparent: child.material.transparent,
+                                    opacity: child.material.opacity
+                                });
+                                child.material = newMaterial;
+                            }
+                            
                             // Make materials more emissive and brighter
                             if (child.material.map) {
                                 child.material.map.encoding = THREE.sRGBEncoding;
