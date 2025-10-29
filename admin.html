@@ -456,9 +456,12 @@
         let editingIndex = -1;
         let currentQuizId = null;
         
-        // Generate a unique quiz ID
+        // Generate a unique quiz ID (shorter format)
         function generateQuizId() {
-            return 'quiz_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            // Use timestamp + random string, but shorter
+            const timestamp = Date.now().toString(36); // Base36 is shorter
+            const random = Math.random().toString(36).substr(2, 6); // 6 chars instead of 9
+            return timestamp + random; // Example: "l1x2y3z4abc123" instead of "quiz_1234567890_abc123xyz"
         }
         
         // Get quiz ID from URL or generate new one
@@ -590,7 +593,8 @@
                         <label style="font-size: 12px;">Game Link (share this with learners):</label>
                         <input type="text" id="gameLink" value="${gameUrl}" readonly style="font-size: 11px; padding: 8px;">
                         <button class="btn btn-primary" onclick="copyGameLink()" style="padding: 6px 12px; font-size: 12px; margin-top: 5px; width: 100%;">📋 Copy Game Link</button>
-                        <p style="font-size: 11px; color: #666; margin-top: 5px;">This link contains ${questions.length} question(s) and is ready to share!</p>
+                        <p style="font-size: 11px; color: #666; margin-top: 5px;">This link contains ${questions.length} question(s) (${gameUrl.length} characters)</p>
+                        ${gameUrl.length > 2000 ? '<p style="font-size: 11px; color: #ff9800; margin-top: 5px;">💡 Tip: Link is very long! Consider using a URL shortener like <a href="https://bit.ly" target="_blank" style="color: #ff9800;">bit.ly</a> or <a href="https://tinyurl.com" target="_blank" style="color: #ff9800;">tinyurl.com</a></p>' : ''}
                     </div>
                     <div class="form-group">
                         <label style="font-size: 12px;">Embed Code (for LMS platforms):</label>
