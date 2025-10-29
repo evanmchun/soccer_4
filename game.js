@@ -3615,7 +3615,7 @@ class GLBGame {
         currentQuestion.answers.forEach((answer, index) => {
             const button = document.createElement('button');
             button.textContent = answer;
-            button.style.cssText = 'display: block; width: 100%; margin: 4px 0; padding: 6px 10px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;';
+            button.style.cssText = 'display: block; width: 100%; margin: 6px 0; padding: 12px 14px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: 500;';
             button.addEventListener('click', () => this.answerQuestion(index));
             answerButtons.appendChild(button);
         });
