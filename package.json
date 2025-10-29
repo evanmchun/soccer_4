@@ -5,7 +5,9 @@
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 8080 -c-1",
-    "dev": "npx http-server -p 8080 -c-1 -o"
+    "dev": "npx http-server -p 8080 -c-1 -o",
+    "optimize-glb": "node optimize-glb.js",
+    "optimize-stadium": "npx @gltf-transform/cli optimize character/low_poly_stadium.glb character/low_poly_stadium_optimized.glb --texture-compress webp --resize-textures 2048 --draco"
   },
   "keywords": [
     "threejs",
@@ -17,6 +19,10 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@gltf-transform/cli": "^3.9.0",
+    "@gltf-transform/core": "^3.9.0",
+    "@gltf-transform/extensions": "^3.9.0",
+    "@gltf-transform/functions": "^3.9.0",
     "http-server": "^14.1.1"
   }
 }

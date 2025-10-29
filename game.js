@@ -1,6 +1,7 @@
 // Three.js GLB Game - ES6 Module Version
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 class GLBGame {
@@ -98,6 +99,13 @@ class GLBGame {
         this.crowdMissedLoaded = false;
         
         this.init();
+    }
+    
+    setupDracoLoader(loader) {
+        // Enable Draco loader for compressed geometry (used in optimized GLB files)
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+        loader.setDRACOLoader(dracoLoader);
     }
     
     init() {
@@ -1307,6 +1315,7 @@ class GLBGame {
     
     loadGLBModel(modelPath) {
         const loader = new GLTFLoader();
+        this.setupDracoLoader(loader);
         
         loader.load(
             modelPath,
@@ -1390,6 +1399,7 @@ class GLBGame {
     
     loadGoalPost() {
         const loader = new GLTFLoader();
+        this.setupDracoLoader(loader);
         const timestamp = Date.now();
         
         loader.load(
@@ -2009,6 +2019,7 @@ class GLBGame {
     
     loadGoalie() {
         const loader = new GLTFLoader();
+        this.setupDracoLoader(loader);
         
         loader.load(
             'character/ch_goalie.glb',
@@ -2128,6 +2139,7 @@ class GLBGame {
     
     loadStadium() {
         const loader = new GLTFLoader();
+        this.setupDracoLoader(loader);
         
         loader.load(
             'character/low_poly_stadium.glb',
@@ -2276,6 +2288,7 @@ class GLBGame {
         console.log('Loading ball.glb model...');
         
         const loader = new GLTFLoader();
+        this.setupDracoLoader(loader);
         
         loader.load(
             'character/ball.glb',
