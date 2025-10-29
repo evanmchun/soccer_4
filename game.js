@@ -5,6 +5,19 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 class GLBGame {
     constructor() {
+        // Ground level constants
+        this.GROUND_LEVEL = 0.0;           // True ground level
+        this.FIELD_SURFACE = 0.01;         // Turf field surface (slightly above ground)
+        this.BALL_GROUND = 0.9;           // Ball ground collision level
+        this.FIELD_MARKINGS = 0.02;       // Field markings height
+        this.CENTER_DOT = 0.03;           // Center dot height
+        this.GRASS_HEIGHT = 0.05;         // Grass blade height
+        this.MARKER_HEIGHT = 0.5;         // Click marker height above ground
+        
+        // Ball collision constants
+        this.BALL_RADIUS = 0.9;           // Ball radius (0.9 as requested)
+        this.showCollisionSphere = true;  // Show collision sphere for debugging
+        
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -766,7 +779,7 @@ class GLBGame {
         
         const turfField = new THREE.Mesh(fieldGeometry, fieldMaterial);
         turfField.rotation.x = -Math.PI / 2; // Lay flat on ground
-        turfField.position.y = 0.01; // Slightly above ground to avoid z-fighting
+        turfField.position.y = this.FIELD_SURFACE; // Use constant for field surface
         turfField.receiveShadow = true;
         
         this.scene.add(turfField);
@@ -1557,9 +1570,9 @@ class GLBGame {
             // Update ball position
             this.ball.position.add(this.ballVelocity);
             
-        // Check if ball hit the ground
-                if (this.ball.position.y <= 0.9) {
-                    this.ball.position.y = 0.9; // Slightly higher position
+        // Check if ball hit the ground (sphere-based collision)
+                if (this.ball.position.y - this.BALL_RADIUS <= this.GROUND_LEVEL) {
+                    this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS; // Position ball so its bottom touches ground
             this.ballVelocity.y = 0; // Stop falling
             this.ballLanded = true;
                 }
@@ -1579,6 +1592,9 @@ class GLBGame {
         // Update ball position
         this.ball.position.add(this.ballVelocity);
         
+        // Update collision sphere position
+        this.updateBallCollisionSphere();
+        
         // CRITICAL: Apply boundary constraints BEFORE checking goal area
         // This prevents the ball from exiting the goal area before constraints are applied
         // DISABLED: This was causing ball teleporting by snapping positions
@@ -1597,9 +1613,9 @@ class GLBGame {
         //     this.ensureBallCannotEscape();
         // }
         
-        // Check if ball hit the ground
-        if (this.ball.position.y <= 0.9) {
-            this.ball.position.y = 0.9; // Slightly higher position
+        // Check if ball hit the ground (sphere-based collision)
+        if (this.ball.position.y - this.BALL_RADIUS <= this.GROUND_LEVEL) {
+            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS; // Position ball so its bottom touches ground
             this.ballVelocity.y *= -0.6; // Bounce with reduced energy
             this.ballVelocity.x *= 0.8;  // Reduce horizontal speed on bounce
             this.ballVelocity.z *= 0.8;
@@ -1641,7 +1657,7 @@ class GLBGame {
         // Constrain ball position to stay within the red box boundaries
         const minX = -goalWidth / 2;  // -16.5
         const maxX = goalWidth / 2;   // 16.5
-        const minY = 0;
+        const minY = this.GROUND_LEVEL; // Use true ground level
         const maxY = goalHeight;      // 11
         const minZ = goalCenterZ - goalDepth / 2;  // -113
         const maxZ = goalCenterZ + goalDepth / 2;  // -105
@@ -1654,63 +1670,63 @@ class GLBGame {
                 console.log('APPLYING BOUNDARY CONSTRAINTS - Boundaries: X:', minX, 'to', maxX, 'Y:', minY, 'to', maxY, 'Z:', minZ, 'to', maxZ);
             }
             
-            // CRITICAL: Keep ball within X boundaries - ball CANNOT escape
-            if (this.ball.position.x < minX) {
+            // CRITICAL: Keep ball sphere within X boundaries - ball CANNOT escape
+            if (this.ball.position.x - this.BALL_RADIUS < minX) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit left boundary at x =', this.ball.position.x, 'constraining to', minX);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit left boundary at x =', this.ball.position.x, 'constraining to', minX + this.BALL_RADIUS);
                 }
-                this.ball.position.x = minX;
+                this.ball.position.x = minX + this.BALL_RADIUS; // Position ball so its left edge touches boundary
                 this.ballVelocity.x = 0; // Stop horizontal movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to left boundary - CANNOT ESCAPE');
                 }
-            } else if (this.ball.position.x > maxX) {
+            } else if (this.ball.position.x + this.BALL_RADIUS > maxX) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit right boundary at x =', this.ball.position.x, 'constraining to', maxX);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit right boundary at x =', this.ball.position.x, 'constraining to', maxX - this.BALL_RADIUS);
                 }
-                this.ball.position.x = maxX;
+                this.ball.position.x = maxX - this.BALL_RADIUS; // Position ball so its right edge touches boundary
                 this.ballVelocity.x = 0; // Stop horizontal movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to right boundary - CANNOT ESCAPE');
                 }
             }
             
-            // CRITICAL: Keep ball within Y boundaries - ball CANNOT escape
-            if (this.ball.position.y < minY) {
+            // CRITICAL: Keep ball sphere within Y boundaries - ball CANNOT escape
+            if (this.ball.position.y - this.BALL_RADIUS < minY) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit bottom boundary at y =', this.ball.position.y, 'constraining to', minY);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit bottom boundary at y =', this.ball.position.y, 'constraining to', minY + this.BALL_RADIUS);
                 }
-                this.ball.position.y = minY;
+                this.ball.position.y = minY + this.BALL_RADIUS; // Position ball so its bottom touches boundary
                 this.ballVelocity.y = 0; // Stop vertical movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to bottom boundary - CANNOT ESCAPE');
                 }
-            } else if (this.ball.position.y > maxY) {
+            } else if (this.ball.position.y + this.BALL_RADIUS > maxY) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit top boundary at y =', this.ball.position.y, 'constraining to', maxY);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit top boundary at y =', this.ball.position.y, 'constraining to', maxY - this.BALL_RADIUS);
                 }
-                this.ball.position.y = maxY;
+                this.ball.position.y = maxY - this.BALL_RADIUS; // Position ball so its top touches boundary
                 this.ballVelocity.y = 0; // Stop vertical movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to top boundary - CANNOT ESCAPE');
                 }
             }
             
-            // CRITICAL: Keep ball within Z boundaries - ball CANNOT escape the box
-            if (this.ball.position.z < minZ) {
+            // CRITICAL: Keep ball sphere within Z boundaries - ball CANNOT escape the box
+            if (this.ball.position.z - this.BALL_RADIUS < minZ) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit back boundary at z =', this.ball.position.z, 'constraining to', minZ);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit back boundary at z =', this.ball.position.z, 'constraining to', minZ + this.BALL_RADIUS);
                 }
-                this.ball.position.z = minZ;
+                this.ball.position.z = minZ + this.BALL_RADIUS; // Position ball so its back edge touches boundary
                 this.ballVelocity.z = 0; // Stop forward movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to back boundary - CANNOT ESCAPE');
                 }
-            } else if (this.ball.position.z > maxZ) {
+            } else if (this.ball.position.z + this.BALL_RADIUS > maxZ) {
                 if (!this.ballLanded) {
-                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit front boundary at z =', this.ball.position.z, 'constraining to', maxZ);
+                    console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball hit front boundary at z =', this.ball.position.z, 'constraining to', maxZ - this.BALL_RADIUS);
                 }
-                this.ball.position.z = maxZ;
+                this.ball.position.z = maxZ - this.BALL_RADIUS; // Position ball so its front edge touches boundary
                 this.ballVelocity.z = 0; // Stop backward movement completely
                 if (!this.ballLanded) {
                     console.log('*** BOUNDARY CONSTRAINT APPLIED *** Ball constrained to front boundary - CANNOT ESCAPE');
@@ -1759,36 +1775,36 @@ class GLBGame {
         // Constrain ball position to stay within the red box boundaries
         const minX = -goalWidth / 2;  // -16.5
         const maxX = goalWidth / 2;   // 16.5
-        const minY = 0;
+        const minY = this.GROUND_LEVEL; // Use true ground level
         const maxY = goalHeight;      // 11
         const minZ = goalCenterZ - goalDepth / 2;  // -113
         const maxZ = goalCenterZ + goalDepth / 2;  // -105
         
         // Minimal logging
         
-        // CRITICAL: Keep ball within X boundaries - ball CANNOT escape
-        if (this.ball.position.x < minX) {
-            this.ball.position.x = minX;
+        // CRITICAL: Keep ball sphere within X boundaries - ball CANNOT escape
+        if (this.ball.position.x - this.BALL_RADIUS < minX) {
+            this.ball.position.x = minX + this.BALL_RADIUS; // Position ball so its left edge touches boundary
             this.ballVelocity.x = 0;
-        } else if (this.ball.position.x > maxX) {
-            this.ball.position.x = maxX;
+        } else if (this.ball.position.x + this.BALL_RADIUS > maxX) {
+            this.ball.position.x = maxX - this.BALL_RADIUS; // Position ball so its right edge touches boundary
             this.ballVelocity.x = 0;
         }
         
-        // CRITICAL: Keep ball within Y boundaries - ball CANNOT escape
-        if (this.ball.position.y < minY) {
-            this.ball.position.y = minY;
+        // CRITICAL: Keep ball sphere within Y boundaries - ball CANNOT escape
+        if (this.ball.position.y - this.BALL_RADIUS < minY) {
+            this.ball.position.y = minY + this.BALL_RADIUS; // Position ball so its bottom touches boundary
             this.ballVelocity.y = 0;
-        } else if (this.ball.position.y > maxY) {
-            this.ball.position.y = maxY;
+        } else if (this.ball.position.y + this.BALL_RADIUS > maxY) {
+            this.ball.position.y = maxY - this.BALL_RADIUS; // Position ball so its top touches boundary
             this.ballVelocity.y = 0;
         }
         
-        if (this.ball.position.z < minZ) {
-            this.ball.position.z = minZ;
+        if (this.ball.position.z - this.BALL_RADIUS < minZ) {
+            this.ball.position.z = minZ + this.BALL_RADIUS; // Position ball so its back edge touches boundary
             this.ballVelocity.z = 0;
-        } else if (this.ball.position.z > maxZ) {
-            this.ball.position.z = maxZ;
+        } else if (this.ball.position.z + this.BALL_RADIUS > maxZ) {
+            this.ball.position.z = maxZ - this.BALL_RADIUS; // Position ball so its front edge touches boundary
             this.ballVelocity.z = 0;
         }
         
@@ -1806,7 +1822,7 @@ class GLBGame {
             this.ballVelocity.set(0, 0, 0);
             
             // Position ball on the ground in the goal area
-            this.ball.position.y = 0.9;
+            this.ball.position.y = this.GROUND_LEVEL + this.BALL_RADIUS;
             
             console.log('Goal scored! Ball will stay in goal area until R is pressed');
             console.log('goalScored flag set to:', this.goalScored);
@@ -1822,54 +1838,54 @@ class GLBGame {
         
         const minX = -goalWidth / 2;  // -16.5
         const maxX = goalWidth / 2;   // 16.5
-        const minY = 0;
+        const minY = this.GROUND_LEVEL; // Use true ground level
         const maxY = goalHeight;      // 11
         const minZ = goalCenterZ - goalDepth / 2;  // -113
         const maxZ = goalCenterZ + goalDepth / 2;  // -105
         
-        // Force ball to stay within boundaries - NO EXCEPTIONS
-        if (this.ball.position.x < minX) {
+        // Force ball sphere to stay within boundaries - NO EXCEPTIONS
+        if (this.ball.position.x - this.BALL_RADIUS < minX) {
             if (!this.ballLanded) {
-                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to left boundary', minX);
+                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to left boundary', minX + this.BALL_RADIUS);
             }
-            this.ball.position.x = minX;
+            this.ball.position.x = minX + this.BALL_RADIUS; // Position ball so its left edge touches boundary
             this.ballVelocity.x = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to left boundary');
             }
-        } else if (this.ball.position.x > maxX) {
+        } else if (this.ball.position.x + this.BALL_RADIUS > maxX) {
             if (!this.ballLanded) {
-                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to right boundary', maxX);
+                console.log('SAFETY: Ball at x =', this.ball.position.x, 'forced back to right boundary', maxX - this.BALL_RADIUS);
             }
-            this.ball.position.x = maxX;
+            this.ball.position.x = maxX - this.BALL_RADIUS; // Position ball so its right edge touches boundary
             this.ballVelocity.x = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to right boundary');
             }
         }
         
-        if (this.ball.position.y < minY) {
-            this.ball.position.y = minY;
+        if (this.ball.position.y - this.BALL_RADIUS < minY) {
+            this.ball.position.y = minY + this.BALL_RADIUS; // Position ball so its bottom touches boundary
             this.ballVelocity.y = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to bottom boundary');
             }
-        } else if (this.ball.position.y > maxY) {
-            this.ball.position.y = maxY;
+        } else if (this.ball.position.y + this.BALL_RADIUS > maxY) {
+            this.ball.position.y = maxY - this.BALL_RADIUS; // Position ball so its top touches boundary
             this.ballVelocity.y = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to top boundary');
             }
         }
         
-        if (this.ball.position.z < minZ) {
-            this.ball.position.z = minZ;
+        if (this.ball.position.z - this.BALL_RADIUS < minZ) {
+            this.ball.position.z = minZ + this.BALL_RADIUS; // Position ball so its back edge touches boundary
             this.ballVelocity.z = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to back boundary');
             }
-        } else if (this.ball.position.z > maxZ) {
-            this.ball.position.z = maxZ;
+        } else if (this.ball.position.z + this.BALL_RADIUS > maxZ) {
+            this.ball.position.z = maxZ - this.BALL_RADIUS; // Position ball so its front edge touches boundary
             this.ballVelocity.z = 0;
             if (!this.ballLanded) {
                 console.log('SAFETY: Ball forced back to front boundary');
@@ -1882,9 +1898,9 @@ class GLBGame {
         
         console.log('=== RESET BALL ===');
         console.log('Quiz active:', this.quizActive);
-        console.log('Setting ball position to:', -3.9, 0.9, -56.25);
+        console.log('Setting ball position to:', -3.9, this.BALL_RADIUS - 0.6, -56.25);
         
-        this.ball.position.set(-3.9, 0.9, -56.25); // Match landing position
+        this.ball.position.set(-3.9, this.BALL_RADIUS - 0.6, -56.25); // Position ball (lowered more to align with collision sphere)
         this.ballVelocity.set(0, 0, 0);
         this.ballKicked = false;
         this.ballStopTimer = 0;
@@ -2096,6 +2112,85 @@ class GLBGame {
         );
     }
     
+    createBallCollisionSphere() {
+        if (!this.ball) return;
+        
+        // Create a wireframe sphere to show collision boundaries
+        const sphereGeometry = new THREE.SphereGeometry(this.BALL_RADIUS, 16, 16);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, // Bright green
+            wireframe: true,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        this.ballCollisionSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        // Position collision sphere to match ball's center exactly
+        this.ballCollisionSphere.position.copy(this.ball.position);
+        
+        // Add to scene
+        this.scene.add(this.ballCollisionSphere);
+        
+        console.log('Ball collision sphere created with radius:', this.BALL_RADIUS);
+        console.log('Ball position:', this.ball.position);
+        console.log('Collision sphere position:', this.ballCollisionSphere.position);
+    }
+    
+    updateBallCollisionSphere() {
+        if (!this.ballCollisionSphere || !this.ball) return;
+        
+        // Update collision sphere position to match ball
+        this.ballCollisionSphere.position.copy(this.ball.position);
+    }
+    
+    toggleCollisionSphere() {
+        if (!this.ballCollisionSphere) {
+            this.createBallCollisionSphere();
+        } else {
+            this.ballCollisionSphere.visible = !this.ballCollisionSphere.visible;
+            console.log('Collision sphere visibility:', this.ballCollisionSphere.visible);
+        }
+    }
+    
+    debugBallBounds() {
+        if (!this.ball) return;
+        
+        // Calculate ball's bounding box
+        const box = new THREE.Box3().setFromObject(this.ball);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        console.log('=== BALL BOUNDS DEBUG ===');
+        console.log('Ball position:', this.ball.position);
+        console.log('Ball bounding box center:', center);
+        console.log('Ball bounding box size:', size);
+        console.log('Ball scale:', this.ball.scale);
+        console.log('Collision sphere radius:', this.BALL_RADIUS);
+        console.log('Collision sphere position:', this.ballCollisionSphere ? this.ballCollisionSphere.position : 'Not created');
+        
+        // Create a visual bounding box
+        const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+        const boxMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xff0000, // Red
+            wireframe: true,
+            transparent: true,
+            opacity: 0.5
+        });
+        
+        const boundingBoxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
+        boundingBoxMesh.position.copy(center);
+        boundingBoxMesh.name = 'ballBoundingBox';
+        
+        // Remove existing bounding box if it exists
+        const existingBox = this.scene.getObjectByName('ballBoundingBox');
+        if (existingBox) {
+            this.scene.remove(existingBox);
+        }
+        
+        this.scene.add(boundingBoxMesh);
+        console.log('Red bounding box added to show ball bounds');
+    }
+    
     loadBall() {
         console.log('Loading ball.glb model...');
         
@@ -2109,8 +2204,8 @@ class GLBGame {
                 // Use the loaded model as the ball
                 this.ball = gltf.scene;
                 
-                // Position the ball
-                this.ball.position.set(-3.9, 0.9, -56.25);
+                // Position the ball (lowered more to better align with collision sphere)
+                this.ball.position.set(-3.9, this.BALL_RADIUS - 0.6, -56.25);
                 
                 // Scale the ball appropriately - make it much bigger
                 this.ball.scale.set(7, 7, 7);
@@ -2127,6 +2222,11 @@ class GLBGame {
                 this.scene.add(this.ball);
                 
                 console.log('Ball.glb model added to scene');
+                
+                // Create collision sphere visualizer
+                if (this.showCollisionSphere) {
+                    this.createBallCollisionSphere();
+                }
             },
             (progress) => {
                 console.log('Ball loading progress:', (progress.loaded / progress.total * 100) + '%');
@@ -2143,11 +2243,16 @@ class GLBGame {
                     opacity: 0.9
                 });
                 this.ball = new THREE.Mesh(ballGeometry, ballMaterial);
-                this.ball.position.set(-3.9, 0.9, -56.25);
+                this.ball.position.set(-3.9, this.BALL_RADIUS - 0.6, -56.25);
                 this.ball.castShadow = true;
                 this.ball.receiveShadow = true;
                 this.scene.add(this.ball);
                 console.log('Fallback sphere ball created');
+                
+                // Create collision sphere visualizer
+                if (this.showCollisionSphere) {
+                    this.createBallCollisionSphere();
+                }
             }
         );
     }
@@ -2354,7 +2459,7 @@ class GLBGame {
         // Move collision box with goalie during save animations
         this.updateGoalieCollisionBox();
         
-        // Check if ball is inside the collision box
+        // Check if ball sphere intersects with the collision box
         const ballPos = this.ball.position;
         const boxPos = this.goalieCollisionBox.position;
         
@@ -2363,10 +2468,19 @@ class GLBGame {
         const boxHeight = 3;  // Half of 6
         const boxDepth = 1;   // Half of 2
         
-        // Check if ball is within box bounds
-        const inBox = Math.abs(ballPos.x - boxPos.x) < boxWidth &&
-                     Math.abs(ballPos.y - boxPos.y) < boxHeight &&
-                     Math.abs(ballPos.z - boxPos.z) < boxDepth;
+        // Calculate closest point on box to ball center
+        const closestX = Math.max(boxPos.x - boxWidth, Math.min(ballPos.x, boxPos.x + boxWidth));
+        const closestY = Math.max(boxPos.y - boxHeight, Math.min(ballPos.y, boxPos.y + boxHeight));
+        const closestZ = Math.max(boxPos.z - boxDepth, Math.min(ballPos.z, boxPos.z + boxDepth));
+        
+        // Calculate distance from ball center to closest point on box
+        const distanceX = ballPos.x - closestX;
+        const distanceY = ballPos.y - closestY;
+        const distanceZ = ballPos.z - closestZ;
+        const distanceSquared = distanceX * distanceX + distanceY * distanceY + distanceZ * distanceZ;
+        
+        // Check if ball sphere intersects with box
+        const inBox = distanceSquared <= (this.BALL_RADIUS * this.BALL_RADIUS);
         
         if (inBox && !this.ballBouncedOffGoalie) {
             console.log('🎯 GOALIE DEFLECT! Ball hit goalie collision box');
@@ -2785,6 +2899,14 @@ class GLBGame {
                 console.log('Test reset - calling resetBall directly');
                 this.resetBall();
                 break;
+            case 'KeyC':
+                console.log('C key pressed - toggling collision sphere');
+                this.toggleCollisionSphere();
+                break;
+            case 'KeyB':
+                console.log('B key pressed - debugging ball bounds');
+                this.debugBallBounds();
+                break;
         }
     }
     
@@ -2929,7 +3051,7 @@ class GLBGame {
             }
             
             // Check if ball is in its initial reset position before allowing kick
-            const initialPosition = new THREE.Vector3(-3.9, 0.5, -56.25); // Use y=0.5 to match ground level
+            const initialPosition = new THREE.Vector3(-3.9, this.BALL_RADIUS - 0.6, -56.25); // Use lowered ball position
             const currentPos = this.ball.position;
             
             // Check each axis separately with appropriate tolerance
